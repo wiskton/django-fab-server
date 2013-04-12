@@ -1,31 +1,37 @@
 # -*- coding: utf-8 -*-
 from fabric.api import *
 
-username = 'root'
-ip = ''
 
+# --------------------------------------------------------
+# ALTERAR CONFIGURAÇÕES BASEADAS NO SEUS SERVIDOR
+# --------------------------------------------------------
+
+username = 'root'
+ip = '127.0.0.1'
 prod_server = '{0}@{1}'.format(username, ip)
 project_path = '/home/'
-env_path = '/home/'
 
-env.hosts = [prod_server]
 
+# --------------------------------------------------------
+# SERVIDOR
+# --------------------------------------------------------
 
 def newserver():
     """Configurando e instalando todos pacotes necessários para servidor"""
     log('Configurando e instalando todos pacotes necessários para servidor')
-    update()
-    upgrade()
+    update_server()
+    upgrade_server()
 
     # pacotes
-    build()
-    python()
-    mysql()
-    outros()
+    build_server()
+    python_server()
+    mysql_server()
+    git_server()
+    server_server()
 
     # atualizando
-    update()
-    upgrade()
+    update_server()
+    upgrade_server()
 
     # altera o arquivo nginx.conf
     run('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
@@ -38,6 +44,7 @@ def newserver():
     local('scp supervisord_server.conf {0}:/etc/supervisor/'.format(prod_server))
     run('mv /etc/supervisor/supervisord_server.conf /etc/supervisor/supervisord.conf')
     supervisor_restart()
+
 
 # cria projeto local
 def newproject():
@@ -87,16 +94,6 @@ def novaconta():
     log('Anotar dados da conta: {0}'.format(conta))
     print 'USUÁRIO senha: {0}'.format(user_senha)
     print 'BANCO senha: {0}'.format(banco_senha)
-
-# gera senha
-def gera_senha(tamanho=12):
-    """Gera uma senha - parametro tamanho"""
-    from random import choice
-    caracters = '0123456789abcdefghijlmnopqrstuwvxzkABCDEFGHIJLMNOPQRSTUWVXZK_#'
-    senha = ''
-    for char in xrange(tamanho):
-        senha += choice(caracters)
-    return senha
 
 # cria usuario no servidor
 def adduser(conta=None, user_senha=None):
@@ -155,20 +152,21 @@ def userdel(conta=None):
     log('Deletando usuário {0}'.format(conta))
     run('sudo userdel -r {0}'.format(conta))
 
+
 # update no servidor
-def update():
+def update_server():
     """Atualizando pacotes"""
     log('Atualizando pacotes')
     run('sudo apt-get update')
 
 # upgrade no servidor
-def upgrade():
+def upgrade_server():
     """Atualizando programas"""
     log('Atualizando programas')
     run('sudo apt-get upgrade')
 
 
-def build():
+def build_server():
     """Instalando build-essential"""
     log('instalando build-essential gcc++')
     run('sudo apt-get install build-essential automake')
@@ -176,23 +174,28 @@ def build():
     run('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
 
-def python():
+def python_server():
     """Instalando todos pacotes necessários"""
     log('Instalando todos pacotes necessários')
     run('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
 
-def mysql():
+def mysql_server():
     """Instalando MySQL"""
     log('Instalando MySQL')
     run('sudo apt-get install mysql-server libmysqlclient-dev')
 
 
-def outros():
-    """Instalando git, nginx e supervisor"""
-    log('Instalando git, nginx e supervisor')
-    run('sudo apt-get install git nginx supervisor')
+def git_server():
+    """Instalando git"""
+    log('Instalando git')
+    run('sudo apt-get install git')
+
+def outros_server():
+    """Instalando nginx e supervisor"""
+    log('Instalando nginx e supervisor')
+    run('sudo apt-get install nginx supervisor')
 
 
 def login():
@@ -286,6 +289,87 @@ def nginx_reload():
     """reload NGINX"""
     log('reload NGINX')
     run('sudo /etc/init.d/nginx reload')
+
+
+# --------------------------------------------------------
+# LOCAL
+# --------------------------------------------------------
+
+# configura uma maquina local ubuntu
+def newdev():
+    """Configura uma maquina local Ubuntu para trabalhar python/django"""
+    log('Configura uma computador Ubuntu para trabalhar python/django')
+    update_local()
+    upgrade_local()
+
+    # pacotes
+    build_local()
+    python_local()
+    mysql_local()
+    git_local()
+
+    # atualizando
+    update_local()
+    upgrade_local()
+
+# update no local
+def update_local():
+    """Atualizando pacotes"""
+    log('Atualizando pacotes')
+    local('sudo apt-get update')
+
+# upgrade no local
+def upgrade_local():
+    """Atualizando programas"""
+    log('Atualizando programas')
+    local('sudo apt-get upgrade')
+
+
+def build_local():
+    """Instalando build-essential"""
+    log('instalando build-essential gcc++')
+    local('sudo apt-get install build-essential automake')
+    local('sudo apt-get install libxml2-dev libxslt-dev')
+    local('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
+
+
+def python_local():
+    """Instalando todos pacotes necessários"""
+    log('Instalando todos pacotes necessários')
+    local('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
+    local('pip install -U distribute')
+
+
+def mysql_local():
+    """Instalando MySQL"""
+    log('Instalando MySQL')
+    local('sudo apt-get install mysql-server libmysqlclient-dev')
+
+
+def git_local():
+    """Instalando git"""
+    log('Instalando git')
+    local('sudo apt-get install git')
+
+def outros_local():
+    """Instalando nginx e supervisor"""
+    log('Instalando nginx e supervisor')
+    local('sudo apt-get install nginx supervisor')
+
+
+# --------------------------------------------------------
+# GLOBAL
+# --------------------------------------------------------
+
+# gera senha
+def gera_senha(tamanho=12):
+    """Gera uma senha - parametro tamanho"""
+    from random import choice
+    caracters = '0123456789abcdefghijlmnopqrstuwvxzkABCDEFGHIJLMNOPQRSTUWVXZK_#'
+    senha = ''
+    for char in xrange(tamanho):
+        senha += choice(caracters)
+    return senha
 
 
 def log(message):
