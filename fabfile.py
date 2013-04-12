@@ -54,7 +54,7 @@ def newproject():
     conta = raw_input('Digite o nome do projeto: ')
 
     local('echo "clonando projeto padrão do bitbucket - django 1.4"')
-    local('git clone git@bitbucket.org:willemarf/d14padrao.git ~/projetos/{0}'.format(conta))
+    local('git clone git@github.com:willemallan/django14.git ~/projetos/{0}'.format(conta))
     local('cd ~/projetos/{0}/app'.format(conta))
     local('mkvirtualenv {0}'.format(conta))
     local('setvirtualenvproject')
