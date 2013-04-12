@@ -1,17 +1,16 @@
 django-fab-server
 =================
 
-instala todos os pacotes necessários para configurar um projeto com python/django + nginx + supervisor no ubuntu
+Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu
 
 
-Configura um novo servidor instalando todos pacotes necessários
-================
+
+Configura um novo servidor instalando todos pacotes necessários:
 
     fab newserver
 
 
-Criar uma nova conta no servidor
-================
+Criar uma nova conta no servidor:
 
     fab novaconta
 
