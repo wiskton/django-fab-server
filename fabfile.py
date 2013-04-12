@@ -351,11 +351,6 @@ def git_local():
     log('Instalando git')
     local('sudo apt-get install git')
 
-def outros_local():
-    """Instalando nginx e supervisor"""
-    log('Instalando nginx e supervisor')
-    local('sudo apt-get install nginx supervisor')
-
 
 # --------------------------------------------------------
 # GLOBAL
