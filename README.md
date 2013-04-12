@@ -3,7 +3,9 @@ django-fab-server
 
 Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu
 
+Configurando um computador para desenvolver em python/django:
 
+    fab newdev
 
 Configura um novo servidor instalando todos pacotes necessários:
 
