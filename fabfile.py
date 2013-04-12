@@ -35,13 +35,13 @@ def newserver():
 
     # altera o arquivo nginx.conf
     run('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
-    local('scp nginx_server.conf {0}:/etc/nginx'.format(prod_server))
+    local('scp inc/nginx_server.conf {0}:/etc/nginx'.format(prod_server))
     run('mv /etc/nginx/nginx_server.conf /etc/nginx/nginx.conf')
     nginx_restart()
 
     # altera o arquivo supervisor.conf
     run('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
-    local('scp supervisord_server.conf {0}:/etc/supervisor/'.format(prod_server))
+    local('scp inc/supervisord_server.conf {0}:/etc/supervisor/'.format(prod_server))
     run('mv /etc/supervisor/supervisord_server.conf /etc/supervisor/supervisord.conf')
     supervisor_restart()
 
@@ -80,8 +80,8 @@ def novaconta():
     run('touch /home/{0}/logs/access.log'.format(conta))
     run('touch /home/{0}/logs/error.log'.format(conta))
     run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
-    local('scp nginx.conf {0}:/home/{1}'.format(prod_server, conta))
-    local('scp supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
+    local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
+    local('scp inc/supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)

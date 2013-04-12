@@ -1,6 +1,9 @@
 #LINUX
 *.py~
 
+# MAC OS X
+.DS_Store
+
 *.py[cod]
 
 # C extensions
