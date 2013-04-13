@@ -7,7 +7,6 @@ Configura um novo servidor instalando todos pacotes necessários:
 
     fab newserver
 
-
 Criar uma nova conta no servidor:
 
     fab novaconta
