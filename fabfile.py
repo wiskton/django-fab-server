@@ -67,6 +67,8 @@ def novaconta():
     run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
     local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
     local('scp inc/supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
+    local('echo sed "s/willemallan/{0}/" /home/{0}/supervisor.conf > /home/{0}/supervisor.conf'.format(conta))
+    local('echo sed "s/willemallan/{0}/" /home/{0}/nginx.conf > /home/{0}/nginx.conf'.format(conta))
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)

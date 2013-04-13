@@ -12,15 +12,9 @@ Criar uma nova conta no servidor:
 
     fab novaconta
 
-Editar os arquivos da pasta do usuário alterando o domínio:
-
-    nginx.conf
-    supervisor.conf
-
 Reiniciar nginx e supervisor:
 
-    fab nginx_restart
-    fab supervisor_restart
+    fab restart
 
 clonar projeto do bitbucket
 
