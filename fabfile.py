@@ -14,6 +14,8 @@ project_path = '/home/'
 
 env.hosts = [prod_server]
 
+# FALTA NGINX E SUPERVISOR PARA CADA USUARIO AUTOMATICO - CRIAR SCRIPT
+
 # --------------------------------------------------------
 # SERVIDOR
 # --------------------------------------------------------
