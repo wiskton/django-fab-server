@@ -23,8 +23,8 @@ Listando os comandos:
 
 Comandos disponíveis:
 
-    adduser             Criando usuário no servidor
-    build_local         Instalando build-essential
+    adduser             Criar um usuário no servidor
+    build_local         Instalar build-essential
     build_server        Instalar build-essential e outros pacotes importante...
     delconta            Deletar conta no servidor
     dropbase            Deletar banco de dados no servidor
@@ -37,7 +37,7 @@ Comandos disponíveis:
     mysql_server        Instalar MySQL no servidor
     newbase             Criar banco de dados e usuário no servidor
     newdev              Configura uma maquina local Ubuntu para trabalhar py...
-    newproject          Criando novo projeto local
+    newproject          Criar novo projeto local
     newserver           Configurar e instalar todos pacotes necessários par...
     nginx_reload        Reload nginx no servidor
     nginx_restart       Restart nginx no servidor

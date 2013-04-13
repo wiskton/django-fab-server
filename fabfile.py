@@ -90,7 +90,7 @@ def delconta():
 
 # cria usuario no servidor
 def adduser(conta=None, user_senha=None):
-    """Criando usuário no servidor"""
+    """Criar um usuário no servidor"""
 
     if not user_senha:
         user_senha = gera_senha(12)
@@ -282,7 +282,7 @@ def nginx_reload():
 
 # cria projeto local
 def newproject():
-    """ Criando novo projeto local """
+    """ Criar novo projeto local """
     log('Criando novo projeto local')
 
     conta = raw_input('Digite o nome do projeto: ')
@@ -329,7 +329,7 @@ def upgrade_local():
 
 
 def build_local():
-    """Instalando build-essential"""
+    """Instalar build-essential"""
     log('instalando build-essential gcc++')
     local('sudo apt-get install build-essential automake')
     local('sudo apt-get install libxml2-dev libxslt-dev')
