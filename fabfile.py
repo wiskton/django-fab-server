@@ -7,18 +7,20 @@ from fabric.api import *
 # --------------------------------------------------------
 
 username = 'root'
-ip = '127.0.0.1'
+ip = '192.168.1.111'
 prod_server = '{0}@{1}'.format(username, ip)
 project_path = '/home/'
+# env_path = '/home/'
 
+env.hosts = [prod_server]
 
 # --------------------------------------------------------
 # SERVIDOR
 # --------------------------------------------------------
 
 def newserver():
-    """Configurando e instalando todos pacotes necessários para servidor"""
-    log('Configurando e instalando todos pacotes necessários para servidor')
+    """Configurar e instalar todos pacotes necessários para servidor"""
+    log('Configurar e instalar todos pacotes necessários para servidor')
     update_server()
     upgrade_server()
 
@@ -27,7 +29,7 @@ def newserver():
     python_server()
     mysql_server()
     git_server()
-    server_server()
+    outros_server()
 
     # atualizando
     update_server()
@@ -45,29 +47,10 @@ def newserver():
     run('mv /etc/supervisor/supervisord_server.conf /etc/supervisor/supervisord.conf')
     supervisor_restart()
 
-
-# cria projeto local
-def newproject():
-    """ Criando novo projeto """
-    log('Criando novo projeto')
-
-    conta = raw_input('Digite o nome do projeto: ')
-
-    local('echo "clonando projeto padrão do bitbucket - django 1.4"')
-    local('git clone git@github.com:willemallan/django14.git ~/projetos/{0}'.format(conta))
-    local('cd ~/projetos/{0}/app'.format(conta))
-    local('mkvirtualenv {0}'.format(conta))
-    local('setvirtualenvproject')
-    local('pip install -r ../requirements.txt')
-    local('rm -rf ~/projetos/{0}/.git'.format(conta))
-    local('rm -rf README.md')
-    local('git init')
-    local('git remote add origin ssh://git@bitbucket.org/willemarf/{0}.git'.format(conta))
-
 # cria uma conta no servidor
 def novaconta():
-    """Criando uma nova conta do usuário"""
-    log('Criando uma nova conta do usuário')
+    """Criar uma nova conta do usuário no servidor"""
+    log('Criar uma nova conta do usuário no servidor')
 
     # criando usuario
     conta = raw_input('Digite o nome da conta: ')
@@ -95,33 +78,34 @@ def novaconta():
     print 'USUÁRIO senha: {0}'.format(user_senha)
     print 'BANCO senha: {0}'.format(banco_senha)
 
-# cria usuario no servidor
-def adduser(conta=None, user_senha=None):
-    """Criando usuário"""
-
-    if not user_senha:
-        user_senha = gera_senha(12)
-    print 'senha usuário: {0}'.format(user_senha)
-
-    if not conta:
-        conta = raw_input('Digite o nome do banco: ')
-
-    log('Criando usuário {0}'.format(conta))
-    run('sudo adduser {0}'.format(conta))
-
 
 # deleta uma conta no servidor
 def delconta():
-    """Deletando conta"""
+    """Deletar conta no servidor"""
     conta = raw_input('Digite o nome da conta: ')
     log('Deletando conta {0}'.format(conta))
     userdel(conta)
     dropbase(conta)
 
 
+# cria usuario no servidor
+def adduser(conta=None, user_senha=None):
+    """Criando usuário no servidor"""
+
+    if not user_senha:
+        user_senha = gera_senha(12)
+    print 'senha usuário: {0}'.format(user_senha)
+
+    if not conta:
+        conta = raw_input('Digite o nome do usuário: ')
+
+    log('Criando usuário {0}'.format(conta))
+    run('sudo adduser {0}'.format(conta))
+
+
 # MYSQL - cria usuario e banco de dados
 def newbase(conta=None, banco_senha=None):
-    """NEW DATABASE"""
+    """Criar banco de dados e usuário no servidor"""
 
     if not banco_senha:
         banco_senha = gera_senha(12)
@@ -138,15 +122,16 @@ def newbase(conta=None, banco_senha=None):
 
 # MYSQL - deleta o usuario e o banco de dados
 def dropbase(conta=None):
-    """DROP DATABASE"""
+    """Deletar banco de dados no servidor"""
     if not conta:
         conta = raw_input('Digite o nome do banco: ')
     run("echo DROP DATABASE {0} | mysql -u root -p".format(conta))
     run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p".format(conta))
 
+
 # LINUX - deleta o usuario
 def userdel(conta=None):
-    """Deletando usuário"""
+    """Deletar usuário no servidor"""
     if not conta:
         conta = raw_input('Digite o nome do usuario: ')
     log('Deletando usuário {0}'.format(conta))
@@ -155,45 +140,45 @@ def userdel(conta=None):
 
 # update no servidor
 def update_server():
-    """Atualizando pacotes"""
+    """Atualizando pacotes no servidor"""
     log('Atualizando pacotes')
     run('sudo apt-get update')
 
 # upgrade no servidor
 def upgrade_server():
-    """Atualizando programas"""
+    """Atualizar programas no servidor"""
     log('Atualizando programas')
     run('sudo apt-get upgrade')
 
 
 def build_server():
-    """Instalando build-essential"""
-    log('instalando build-essential gcc++')
+    """Instalar build-essential e outros pacotes importantes no servidor"""
+    log('Instalando build-essential e outros pacotes')
     run('sudo apt-get install build-essential automake')
     run('sudo apt-get install libxml2-dev libxslt-dev')
     run('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
 
 def python_server():
-    """Instalando todos pacotes necessários"""
+    """Instalar todos pacotes necessários do python no servidor"""
     log('Instalando todos pacotes necessários')
     run('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
 
 def mysql_server():
-    """Instalando MySQL"""
+    """Instalar MySQL no servidor"""
     log('Instalando MySQL')
     run('sudo apt-get install mysql-server libmysqlclient-dev')
 
 
 def git_server():
-    """Instalando git"""
+    """Instalar git no servidor"""
     log('Instalando git')
     run('sudo apt-get install git')
 
 def outros_server():
-    """Instalando nginx e supervisor"""
+    """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     run('sudo apt-get install nginx supervisor')
 
@@ -204,7 +189,7 @@ def login():
 
 
 def upload_public_key():
-    """faz o upload da chave ssh para o servidor"""
+    """Faz o upload da chave ssh para o servidor"""
     log('Adicionando chave publica no servidor')
     ssh_file = '~/.ssh/id_rsa.pub'
     target_path = '~/.ssh/uploaded_key.pub'
@@ -214,7 +199,7 @@ def upload_public_key():
 
 # RESTART
 def restart():
-    """reiniciando servicos"""
+    """Reiniciar servicos no servidor"""
     log('reiniciando servicos')
     nginx_stop()
     nginx_start()
@@ -227,21 +212,21 @@ def restart():
 
 # SUPERVISOR APP
 def start_server():
-    """inicia aplicação"""
+    """Start aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('inicia aplicação')
     run('sudo supervisorctl start %s' % conta)
 
 
 def stop_server():
-    """para aplicação"""
+    """Stop aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('para aplicação')
     run('sudo supervisorctl stop %s' % conta)
 
 
 def restart_server():
-    """reinicia aplicação"""
+    """Restart aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('reinicia aplicação')
     run('sudo supervisorctl restart %s' % conta)
@@ -249,51 +234,69 @@ def restart_server():
 
 # SUPERVISOR
 def supervisor_start():
-    """start supervisor"""
+    """Start supervisor no servidor"""
     log('start supervisor')
     run('sudo /etc/init.d/supervisor start')
 
 
 def supervisor_stop():
-    """stop supervisor"""
+    """Stop supervisor no servidor"""
     log('stop supervisor')
     run('sudo /etc/init.d/supervisor stop')
 
 
 def supervisor_restart():
-    """restart supervisor"""
+    """Restart supervisor no servidor"""
     log('restart supervisor')
     run('sudo /etc/init.d/supervisor restart')
 
 
 # NGINX
 def nginx_start():
-    """start NGINX"""
-    log('start NGINX')
+    """Start nginx no servidor"""
+    log('start nginx')
     run('sudo /etc/init.d/nginx start')
 
 
 def nginx_stop():
-    """stop NGINX"""
-    log('stop NGINX')
+    """Stop nginx no servidor"""
+    log('stop nginx')
     run('sudo /etc/init.d/nginx stop')
 
 
 def nginx_restart():
-    """restart NGINX"""
-    log('restart NGINX')
+    """Restart nginx no servidor"""
+    log('restart nginx')
     run('sudo /etc/init.d/nginx restart')
 
 
 def nginx_reload():
-    """reload NGINX"""
-    log('reload NGINX')
+    """Reload nginx no servidor"""
+    log('reload nginx')
     run('sudo /etc/init.d/nginx reload')
 
 
 # --------------------------------------------------------
 # LOCAL
 # --------------------------------------------------------
+
+# cria projeto local
+def newproject():
+    """ Criando novo projeto local """
+    log('Criando novo projeto local')
+
+    conta = raw_input('Digite o nome do projeto: ')
+
+    local('echo "clonando projeto padrão do bitbucket - django 1.4"')
+    local('git clone git@github.com:willemallan/django14.git ~/projetos/{0}'.format(conta))
+    local('cd ~/projetos/{0}/app'.format(conta))
+    local('mkvirtualenv {0}'.format(conta))
+    local('setvirtualenvproject')
+    local('pip install -r ../requirements.txt')
+    local('rm -rf ~/projetos/{0}/.git'.format(conta))
+    local('rm -rf README.md')
+    local('git init')
+    local('git remote add origin ssh://git@bitbucket.org/willemarf/{0}.git'.format(conta))
 
 # configura uma maquina local ubuntu
 def newdev():
@@ -338,7 +341,9 @@ def python_local():
     log('Instalando todos pacotes necessários')
     local('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     local('pip install -U distribute')
-
+    local('pip install virtualenvwrapper')
+    local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
+    local('source ~/.bashrc')
 
 def mysql_local():
     """Instalando MySQL"""
