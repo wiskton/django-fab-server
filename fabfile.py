@@ -344,8 +344,8 @@ def python_local():
     local('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     local('pip install -U distribute')
     local('pip install virtualenvwrapper')
-    local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
-    local('source ~/.bashrc')
+    # local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
+    # local('source ~/.bashrc')
 
 def mysql_local():
     """Instalando MySQL"""
