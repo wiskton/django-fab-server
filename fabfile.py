@@ -69,7 +69,7 @@ def novaconta():
     local('scp inc/supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.conf > /home/{0}/supervisor.conf".format(conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/nginx.conf > /home/{0}/nginx.conf".format(conta))
- 
+
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
     newbase(conta, banco_senha)
@@ -162,6 +162,17 @@ def build_server():
     run('sudo apt-get install libxml2-dev libxslt-dev')
     run('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
+    # Then, on 32-bit Ubuntu, you should run:
+
+    # sudo ln -s /usr/lib/i386-linux-gnu/libfreetype.so /usr/lib/
+    # sudo ln -s /usr/lib/i386-linux-gnu/libz.so /usr/lib/
+    # sudo ln -s /usr/lib/i386-linux-gnu/libjpeg.so /usr/lib/
+
+    # Otherwise, on 64-bit Ubuntu, you should run:
+
+    # sudo ln -s /usr/lib/x86_64-linux-gnu/libfreetype.so /usr/lib/
+    # sudo ln -s /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/
+    # sudo ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib/
 
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
