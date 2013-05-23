@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
-from fabric.api import *
+import os
 
+from contextlib import contextmanager
+from fabric.api import *
+from fabric.contrib.files import upload_template
+
+CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # --------------------------------------------------------
 # ALTERAR CONFIGURAÇÕES BASEADAS NO SEUS SERVIDOR
@@ -12,7 +17,14 @@ prod_server = '{0}@{1}'.format(username, ip)
 project_path = '/home/'
 # env_path = '/home/'
 
+# diretório do conf.d do supervisor
+env.supervisor_conf_d_path = '/etc/supervisor/conf.d'
+
+# diretório do sites-enable do nginx
+env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
+
 env.hosts = [prod_server]
+
 
 # FALTA NGINX E SUPERVISOR PARA CADA USUARIO AUTOMATICO - CRIAR SCRIPT
 
