@@ -375,14 +375,15 @@ def build_local():
     local('sudo apt-get -y install build-essential automake')
     local('sudo apt-get -y install libxml2-dev libxslt-dev')
     local('sudo apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
-
+    local('sudo apt-get -y install terminator')
 
 def python_local():
     """Instalando todos pacotes necessários"""
     log('Instalando todos pacotes necessários')
     local('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
-    local('pip install -U distribute')
-    local('pip install virtualenvwrapper')
+    local('sudo pip install -U distribute')
+    local('sudo pip install virtualenvwrapper')
+    # local('cp ~/.bashrc ~/.bashrc_bkp')
     # local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
     # local('source ~/.bashrc')
 
