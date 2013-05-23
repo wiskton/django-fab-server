@@ -65,6 +65,20 @@ def novaconta():
     run('touch /home/{0}/logs/access.log'.format(conta))
     run('touch /home/{0}/logs/error.log'.format(conta))
     run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
+
+    # upload_template(
+    #     filename='inc/supervisor.conf',
+    #     destination=os.path.join(
+    #         env.supervisor_conf_d_path,
+    #         'supervisor.conf'
+    #     ),
+    #     template_dir=os.path.join(CURRENT_PATH, 'templates'),
+    #     context=env,
+    #     use_jinja=True,
+    #     use_sudo=True,
+    #     backup=False
+    # )
+
     local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
     local('scp inc/supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.conf > /home/{0}/supervisor.conf".format(conta))
@@ -158,9 +172,9 @@ def upgrade_server():
 def build_server():
     """Instalar build-essential e outros pacotes importantes no servidor"""
     log('Instalando build-essential e outros pacotes')
-    run('sudo apt-get install build-essential automake')
-    run('sudo apt-get install libxml2-dev libxslt-dev')
-    run('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
+    run('sudo apt-get -y install build-essential automake')
+    run('sudo apt-get -y install libxml2-dev libxslt-dev')
+    run('sudo apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
     # Then, on 32-bit Ubuntu, you should run:
 
@@ -177,25 +191,25 @@ def build_server():
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
     log('Instalando todos pacotes necessários')
-    run('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
+    run('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
 
 def mysql_server():
     """Instalar MySQL no servidor"""
     log('Instalando MySQL')
-    run('sudo apt-get install mysql-server libmysqlclient-dev')
+    run('sudo apt-get -y install mysql-server libmysqlclient-dev')
 
 
 def git_server():
     """Instalar git no servidor"""
     log('Instalando git')
-    run('sudo apt-get install git')
+    run('sudo apt-get -y install git')
 
 def outros_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
-    run('sudo apt-get install nginx supervisor')
+    run('sudo apt-get -y install nginx supervisor')
 
 
 def login():
@@ -346,15 +360,15 @@ def upgrade_local():
 def build_local():
     """Instalar build-essential"""
     log('instalando build-essential gcc++')
-    local('sudo apt-get install build-essential automake')
-    local('sudo apt-get install libxml2-dev libxslt-dev')
-    local('sudo apt-get install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
+    local('sudo apt-get -y install build-essential automake')
+    local('sudo apt-get -y install libxml2-dev libxslt-dev')
+    local('sudo apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
 
 def python_local():
     """Instalando todos pacotes necessários"""
     log('Instalando todos pacotes necessários')
-    local('sudo apt-get install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
+    local('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     local('pip install -U distribute')
     local('pip install virtualenvwrapper')
     # local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
@@ -363,13 +377,13 @@ def python_local():
 def mysql_local():
     """Instalando MySQL"""
     log('Instalando MySQL')
-    local('sudo apt-get install mysql-server libmysqlclient-dev')
+    local('sudo apt-get -y install mysql-server libmysqlclient-dev')
 
 
 def git_local():
     """Instalando git"""
     log('Instalando git')
-    local('sudo apt-get install git')
+    local('sudo apt-get -y install git')
 
 
 # --------------------------------------------------------
