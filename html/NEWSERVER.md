@@ -11,6 +11,9 @@ Criar uma nova conta no servidor:
 
     fab novaconta
 
+não esquecer de editar o arquivo /home/conta/nginx.conf alterando para o domínio correto.
+
+
 Reiniciar nginx e supervisor:
 
     fab restart
