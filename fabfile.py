@@ -92,8 +92,8 @@ def novaconta():
     # )
 
     local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
-    local('scp inc/supervisor.conf {0}:/home/{1}'.format(prod_server, conta))
-    # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.conf > /home/{0}/supervisor.conf".format(conta))
+    local('scp inc/supervisor.ini {0}:/home/{1}'.format(prod_server, conta))
+    # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.ini > /home/{0}/supervisor.ini".format(conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/nginx.conf > /home/{0}/nginx.conf".format(conta))
 
     # cria banco e usuario no banco
