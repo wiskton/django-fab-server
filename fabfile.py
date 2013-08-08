@@ -145,9 +145,15 @@ def newbase(conta=None, banco_senha=None):
         conta = raw_input('Digite o nome do banco: ')
     log('NEW DATABASE {0}'.format(conta))
 
+    # cria acesso para o banco local
     run("echo CREATE DATABASE {0} | mysql -u root -p".format(conta))
     run("echo \"CREATE USER '{0}'@'localhost' IDENTIFIED BY '{1}'\" | mysql -u root -p".format(conta, banco_senha))
     run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p".format(conta))
+
+    # cria acesso para o banco remoto
+    run("echo CREATE DATABASE {0} | mysql -u root -p".format(conta))
+    run("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p".format(conta, banco_senha))
+    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p".format(conta))
 
 
 # MYSQL - deleta o usuario e o banco de dados
@@ -222,6 +228,9 @@ def outros_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     run('sudo apt-get -y install nginx supervisor')
+    run('sudo apt-get -y install proftpd mercurial rubygems')
+    run('sudo gem install compass')
+    run('sudo easy_install -U distribute')
 
 
 def login():
