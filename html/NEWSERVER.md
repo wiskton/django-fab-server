@@ -37,6 +37,10 @@ clonar projeto do bitbucket
     source env/bin/activate
     pip install -r project/requirements.txt
 
+dependendo do projeto precisa criar os links simbolicos de media e static, o nginx cai na pasta raiz então precisa ter os diretórios static e media:
+    ln -s project/static static
+    ln -s project/media media
+
 criando as tabelas da aplicação:
 
     python project/manage.py syncdb
