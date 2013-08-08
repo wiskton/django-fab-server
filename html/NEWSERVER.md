@@ -37,7 +37,12 @@ clonar projeto do bitbucket
     source env/bin/activate
     pip install -r project/requirements.txt
 
+criar pasta para collectstatic (depende do projeto):
+
+    mkdir ~/project/static/
+
 dependendo do projeto precisa criar os links simbolicos de media e static, o nginx cai na pasta raiz então precisa ter os diretórios static e media:
+
     ln -s project/static static
     ln -s project/media media
 
@@ -49,10 +54,6 @@ criando as tabelas da aplicação:
 rodar projeto para ver se ocorreu tudo bem:
 
     python project/manage.py runserver 8000
-
-criar pasta para collectstatic (depende do projeto):
-
-    mkdir ~/project/config/static/
 
 reiniciar nginx e supervisor
 
