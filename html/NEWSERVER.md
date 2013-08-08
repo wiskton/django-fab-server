@@ -1,7 +1,7 @@
 django-fab-server
 =================
 
-Instalar na máquina pip e fabric distribuições linux debian:
+Instalar na máquina pip e fabric distribuições linux badeadas no debian:
 
     sudo apt-get install python-pip
     sudo pip install fabric
