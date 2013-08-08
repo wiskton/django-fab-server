@@ -1,6 +1,16 @@
 django-fab-server
 =================
 
+Instalar na máquina pip e fabric:
+
+    sudo apt-get install python-pip
+    sudo pip install fabric
+
+
+Alterar configurações no fabfile.py:
+
+    username = 'root'
+    ip = '192.168.1.111'
 
 
 Configura um novo servidor instalando todos pacotes necessários:
@@ -11,7 +21,7 @@ Criar uma nova conta no servidor:
 
     fab novaconta
 
-não esquecer de editar o arquivo /home/conta/nginx.conf alterando para o domínio correto.
+não esquecer de editar o arquivo /home/conta/nginx.conf e /home/conta/supervisord.ini alterando para o domínio correto.
 
 
 Reiniciar nginx e supervisor:
