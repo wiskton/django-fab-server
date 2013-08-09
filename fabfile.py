@@ -151,7 +151,6 @@ def newbase(conta=None, banco_senha=None):
     run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p".format(conta))
 
     # cria acesso para o banco remoto
-    run("echo CREATE DATABASE {0} | mysql -u root -p".format(conta))
     run("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p".format(conta, banco_senha))
     run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p".format(conta))
 
