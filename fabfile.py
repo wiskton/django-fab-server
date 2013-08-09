@@ -105,8 +105,8 @@ def novaconta():
 
     # log para salvar no docs
     log('Anotar dados da conta: {0}'.format(conta))
-    print 'USUÁRIO senha: {0}'.format(user_senha)
-    print 'BANCO senha: {0}'.format(banco_senha)
+    log('USUÁRIO senha: {0}'.format(user_senha))
+    log('BANCO senha: {0}'.format(banco_senha))
 
 
 # deleta uma conta no servidor
@@ -424,7 +424,7 @@ def gera_senha(tamanho=12):
 
 def log(message):
     print """
-==============================================================
+================================================================================
 %s
-==============================================================
+================================================================================
     """ % message
