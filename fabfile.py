@@ -20,6 +20,12 @@ project_path = '/home/'
 # diretório do conf.d do supervisor
 env.supervisor_conf_d_path = '/etc/supervisor/conf.d'
 
+# nome da conta
+env.conta = ''
+
+# dominio da conta
+env.dominio = ''
+
 # diretório do sites-enable do nginx
 env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 
@@ -78,21 +84,11 @@ def novaconta():
     run('touch /home/{0}/logs/error.log'.format(conta))
     run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
 
-    # upload_template(
-    #     filename='inc/supervisor.conf',
-    #     destination=os.path.join(
-    #         env.supervisor_conf_d_path,
-    #         'supervisor.conf'
-    #     ),
-    #     template_dir=os.path.join(CURRENT_PATH, 'templates'),
-    #     context=env,
-    #     use_jinja=True,
-    #     use_sudo=True,
-    #     backup=False
-    # )
+    configure_ngix(conta)
+    configure_supervisor(conta)
 
-    local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
-    local('scp inc/supervisor.ini {0}:/home/{1}'.format(prod_server, conta))
+    # local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
+    # local('scp inc/supervisor.ini {0}:/home/{1}'.format(prod_server, conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.ini > /home/{0}/supervisor.ini".format(conta))
     # run("sed 's/willemallan/{0}/' /home/{0}/nginx.conf > /home/{0}/nginx.conf".format(conta))
 
@@ -107,6 +103,44 @@ def novaconta():
     log('Anotar dados da conta: {0}'.format(conta))
     log('USUÁRIO senha: {0}'.format(user_senha))
     log('BANCO senha: {0}'.format(banco_senha))
+
+
+# configure_ngix
+def configure_ngix(conta):
+
+    env.conta = conta
+    upload_template(
+            filename='nginx.conf',
+            destination=os.path.join(
+                '%s%s' % (project_path, conta),
+                'supervisor.conf'
+            ),
+            template_dir=os.path.join(CURRENT_PATH, 'inc'),
+            context=env,
+            use_jinja=True,
+            use_sudo=True,
+            backup=False
+        )
+
+
+# configure_ngix
+def configure_supervisor(conta):
+
+    env.conta = conta
+    env.dominio = '%s.com.br' % conta
+
+    upload_template(
+            filename='supervisor.ini',
+            destination=os.path.join(
+                '%s%s' % (project_path, conta),
+                'supervisor.ini'
+            ),
+            template_dir=os.path.join(CURRENT_PATH, 'inc'),
+            context=env,
+            use_jinja=True,
+            use_sudo=True,
+            backup=False
+        )
 
 
 # deleta uma conta no servidor
