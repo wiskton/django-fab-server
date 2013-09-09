@@ -101,7 +101,7 @@ def novaconta():
     newbase(conta, banco_senha)
 
     # da permissao para o usuario no diretorio
-    run('sudo chown -R {0}:{0} /home/{0}'.format(conta))
+    sudo('chown -R {0}:{0} /home/{0}'.format(conta))
 
     # log para salvar no docs
     log('Anotar dados da conta: {0}'.format(conta))
@@ -130,7 +130,7 @@ def adduser(conta=None, user_senha=None):
         conta = raw_input('Digite o nome do usuário: ')
 
     log('Criando usuário {0}'.format(conta))
-    run('sudo adduser {0}'.format(conta))
+    sudo('adduser {0}'.format(conta))
 
 
 # MYSQL - cria usuario e banco de dados
@@ -170,28 +170,28 @@ def userdel(conta=None):
     if not conta:
         conta = raw_input('Digite o nome do usuario: ')
     log('Deletando usuário {0}'.format(conta))
-    run('sudo userdel -r {0}'.format(conta))
+    sudo('userdel -r {0}'.format(conta))
 
 
 # update no servidor
 def update_server():
     """Atualizando pacotes no servidor"""
     log('Atualizando pacotes')
-    run('sudo apt-get update')
+    sudo('apt-get -y update')
 
 # upgrade no servidor
 def upgrade_server():
     """Atualizar programas no servidor"""
     log('Atualizando programas')
-    run('sudo apt-get upgrade')
+    sudo('apt-get -y upgrade')
 
 
 def build_server():
     """Instalar build-essential e outros pacotes importantes no servidor"""
     log('Instalando build-essential e outros pacotes')
-    run('sudo apt-get -y install build-essential automake')
-    run('sudo apt-get -y install libxml2-dev libxslt-dev')
-    run('sudo apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
+    sudo('apt-get -y install build-essential automake')
+    sudo('apt-get -y install libxml2-dev libxslt-dev')
+    sudo('apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
 
     # Then, on 32-bit Ubuntu, you should run:
 
@@ -208,28 +208,28 @@ def build_server():
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
     log('Instalando todos pacotes necessários')
-    run('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
+    sudo('apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
 
 def mysql_server():
     """Instalar MySQL no servidor"""
     log('Instalando MySQL')
-    run('sudo apt-get -y install mysql-server libmysqlclient-dev')
+    sudo('apt-get -y install mysql-server libmysqlclient-dev')
 
 
 def git_server():
     """Instalar git no servidor"""
     log('Instalando git')
-    run('sudo apt-get -y install git')
+    sudo('apt-get -y install git')
 
 def outros_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
-    run('sudo apt-get -y install nginx supervisor')
-    run('sudo apt-get -y install proftpd mercurial rubygems')
-    run('sudo gem install compass')
-    run('sudo easy_install -U distribute')
+    sudo('apt-get -y install nginx supervisor')
+    sudo('apt-get -y install proftpd mercurial rubygems')
+    sudo('gem install compass')
+    sudo('easy_install -U distribute')
 
 
 def login():
@@ -264,65 +264,65 @@ def start_server():
     """Start aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('inicia aplicação')
-    run('sudo supervisorctl start %s' % conta)
+    sudo('supervisorctl start %s' % conta)
 
 
 def stop_server():
     """Stop aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('para aplicação')
-    run('sudo supervisorctl stop %s' % conta)
+    sudo('supervisorctl stop %s' % conta)
 
 
 def restart_server():
     """Restart aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
     log('reinicia aplicação')
-    run('sudo supervisorctl restart %s' % conta)
+    sudo('supervisorctl restart %s' % conta)
 
 
 # SUPERVISOR
 def supervisor_start():
     """Start supervisor no servidor"""
     log('start supervisor')
-    run('sudo /etc/init.d/supervisor start')
+    sudo('/etc/init.d/supervisor start')
 
 
 def supervisor_stop():
     """Stop supervisor no servidor"""
     log('stop supervisor')
-    run('sudo /etc/init.d/supervisor stop')
+    sudo('/etc/init.d/supervisor stop')
 
 
 def supervisor_restart():
     """Restart supervisor no servidor"""
     log('restart supervisor')
-    run('sudo /etc/init.d/supervisor restart')
+    sudo('/etc/init.d/supervisor restart')
 
 
 # NGINX
 def nginx_start():
     """Start nginx no servidor"""
     log('start nginx')
-    run('sudo /etc/init.d/nginx start')
+    sudo('/etc/init.d/nginx start')
 
 
 def nginx_stop():
     """Stop nginx no servidor"""
     log('stop nginx')
-    run('sudo /etc/init.d/nginx stop')
+    sudo('/etc/init.d/nginx stop')
 
 
 def nginx_restart():
     """Restart nginx no servidor"""
     log('restart nginx')
-    run('sudo /etc/init.d/nginx restart')
+    sudo('/etc/init.d/nginx restart')
 
 
 def nginx_reload():
     """Reload nginx no servidor"""
     log('reload nginx')
-    run('sudo /etc/init.d/nginx reload')
+    sudo('/etc/init.d/nginx reload')
 
 
 # --------------------------------------------------------
