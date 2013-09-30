@@ -82,12 +82,12 @@ def novaconta():
 
     # cria usuario no linux
     user_senha = gera_senha(12)
-    adduser(conta, user_senha)
+    adduser(env.conta, user_senha)
 
-    run('mkdir /home/{0}/logs'.format(conta))
-    run('touch /home/{0}/logs/access.log'.format(conta))
-    run('touch /home/{0}/logs/error.log'.format(conta))
-    run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
+    run('mkdir /home/{0}/logs'.format(env.conta))
+    run('touch /home/{0}/logs/access.log'.format(env.conta))
+    run('touch /home/{0}/logs/error.log'.format(env.conta))
+    run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
 
     configure_ngix()
     configure_supervisor()
@@ -99,13 +99,13 @@ def novaconta():
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
-    newbase(conta, banco_senha)
+    newbase(env.conta, banco_senha)
 
     # da permissao para o usuario no diretorio
-    sudo('chown -R {0}:{0} /home/{0}'.format(conta))
+    sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
 
     # log para salvar no docs
-    log('Anotar dados da conta: {0}'.format(conta))
+    log('Anotar dados da conta: {0}'.format(env.conta))
     log('USUÁRIO senha: {0}'.format(user_senha))
     log('BANCO senha: {0}'.format(banco_senha))
 
