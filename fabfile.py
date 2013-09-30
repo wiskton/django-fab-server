@@ -27,7 +27,7 @@ env.conta = ''
 env.dominio = ''
 
 # porta para rodar o projeto
-env.porta = '8000'
+env.porta = ''
 
 # diretório do sites-enable do nginx
 env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
@@ -78,7 +78,7 @@ def novaconta():
     # criando usuario
     env.conta = raw_input('Digite o nome da conta: ')
     env.dominio = raw_input('Digite o domínio do site: ')
-    env.conta = raw_input('Digite o número da porta: ')
+    env.porta = raw_input('Digite o número da porta: ')
 
     # cria usuario no linux
     user_senha = gera_senha(12)
@@ -105,9 +105,7 @@ def novaconta():
     sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
 
     # log para salvar no docs
-    log('Anotar dados da conta: {0}'.format(env.conta))
-    log('USUÁRIO senha: {0}'.format(user_senha))
-    log('BANCO senha: {0}'.format(banco_senha))
+    log('Anotar dados da conta: {0} \nUSUÁRIO senha: {0} \nBANCO senha: {0}'.format(env.conta, user_senha, banco_senha))
 
 
 # configure_ngix
@@ -116,7 +114,7 @@ def configure_ngix():
     upload_template(
             filename='nginx.conf',
             destination=os.path.join(
-                '%s%s' % (project_path, conta),
+                '%s%s' % (project_path, env.conta),
                 'nginx.conf'
             ),
             template_dir=os.path.join(CURRENT_PATH, 'inc'),
@@ -133,7 +131,7 @@ def configure_supervisor():
     upload_template(
             filename='supervisor.ini',
             destination=os.path.join(
-                '%s%s' % (project_path, conta),
+                '%s%s' % (project_path, env.conta),
                 'supervisor.ini'
             ),
             template_dir=os.path.join(CURRENT_PATH, 'inc'),
@@ -197,6 +195,7 @@ def dropbase(conta=None):
         conta = raw_input('Digite o nome do banco: ')
     run("echo DROP DATABASE {0} | mysql -u root -p".format(conta))
     run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p".format(conta))
+    run("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p".format(conta))
 
 
 # LINUX - deleta o usuario
