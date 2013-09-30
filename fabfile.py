@@ -26,6 +26,9 @@ env.conta = ''
 # dominio da conta
 env.dominio = ''
 
+# porta para rodar o projeto
+env.porta = '8000'
+
 # diretório do sites-enable do nginx
 env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 
@@ -73,7 +76,9 @@ def novaconta():
     log('Criar uma nova conta do usuário no servidor')
 
     # criando usuario
-    conta = raw_input('Digite o nome da conta: ')
+    env.conta = raw_input('Digite o nome da conta: ')
+    env.dominio = raw_input('Digite o domínio do site: ')
+    env.conta = raw_input('Digite o número da porta: ')
 
     # cria usuario no linux
     user_senha = gera_senha(12)
@@ -84,8 +89,8 @@ def novaconta():
     run('touch /home/{0}/logs/error.log'.format(conta))
     run('virtualenv /home/{0}/env --no-site-packages'.format(conta))
 
-    configure_ngix(conta)
-    configure_supervisor(conta)
+    configure_ngix()
+    configure_supervisor()
 
     # local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
     # local('scp inc/supervisor.ini {0}:/home/{1}'.format(prod_server, conta))
@@ -106,9 +111,8 @@ def novaconta():
 
 
 # configure_ngix
-def configure_ngix(conta):
+def configure_ngix():
 
-    env.conta = conta
     upload_template(
             filename='nginx.conf',
             destination=os.path.join(
@@ -124,10 +128,7 @@ def configure_ngix(conta):
 
 
 # configure_ngix
-def configure_supervisor(conta):
-
-    env.conta = conta
-    env.dominio = '%s.com.br' % conta
+def configure_supervisor():
 
     upload_template(
             filename='supervisor.ini',
