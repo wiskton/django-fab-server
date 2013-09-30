@@ -32,6 +32,12 @@ env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 env.hosts = [prod_server]
 
 
+# LOCAL_SETTINGS ==========================================================================================================================
+try:
+    from local_settings import *
+except ImportError:
+    pass
+
 # FALTA NGINX E SUPERVISOR PARA CADA USUARIO AUTOMATICO - CRIAR SCRIPT
 
 # --------------------------------------------------------
@@ -462,12 +468,3 @@ def log(message):
 %s
 ================================================================================
     """ % message
-
-
-
-
-# LOCAL_SETTINGS ==========================================================================================================================
-try:
-    from local_settings import *
-except ImportError:
-    pass
