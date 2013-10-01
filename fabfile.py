@@ -105,7 +105,7 @@ def novaconta():
     sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
 
     # log para salvar no docs
-    log('Anotar dados da conta: {0} \nUSUÁRIO senha: {0} \nBANCO senha: {0}'.format(env.conta, user_senha, banco_senha))
+    log('Anotar dados da conta: {0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha))
 
 
 # configure_ngix
