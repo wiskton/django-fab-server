@@ -26,6 +26,9 @@ env.conta = ''
 # dominio da conta
 env.dominio = ''
 
+# senha do root do mysql
+env.mysql_password = ''
+
 # porta para rodar o projeto
 env.porta = ''
 
@@ -79,6 +82,7 @@ def novaconta():
     env.conta = raw_input('Digite o nome da conta: ')
     env.dominio = raw_input('Digite o domínio do site: ')
     env.porta = raw_input('Digite o número da porta: ')
+    env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
     # cria usuario no linux
     user_senha = gera_senha(12)
@@ -179,13 +183,13 @@ def newbase(conta=None, banco_senha=None):
     log('NEW DATABASE {0}'.format(conta))
 
     # cria acesso para o banco local
-    run("echo CREATE DATABASE {0} | mysql -u root -p".format(conta))
-    run("echo \"CREATE USER '{0}'@'localhost' IDENTIFIED BY '{1}'\" | mysql -u root -p".format(conta, banco_senha))
-    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p".format(conta))
+    run("echo CREATE DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
+    run("echo \"CREATE USER '{0}'@'localhost' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
+    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
     # cria acesso para o banco remoto
-    run("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p".format(conta, banco_senha))
-    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p".format(conta))
+    run("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
+    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
 
 # MYSQL - deleta o usuario e o banco de dados
@@ -193,9 +197,9 @@ def dropbase(conta=None):
     """Deletar banco de dados no servidor"""
     if not conta:
         conta = raw_input('Digite o nome do banco: ')
-    run("echo DROP DATABASE {0} | mysql -u root -p".format(conta))
-    run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p".format(conta))
-    run("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p".format(conta))
+    run("echo DROP DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
+    run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
+    run("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
 
 # LINUX - deleta o usuario
