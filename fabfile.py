@@ -150,6 +150,7 @@ def configure_supervisor():
 def delconta():
     """Deletar conta no servidor"""
     conta = raw_input('Digite o nome da conta: ')
+    env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
     log('Deletando conta {0}'.format(conta))
     userdel(conta)
     dropbase(conta)
@@ -197,6 +198,8 @@ def dropbase(conta=None):
     """Deletar banco de dados no servidor"""
     if not conta:
         conta = raw_input('Digite o nome do banco: ')
+    if not env.mysql_password:
+        env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
     run("echo DROP DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
     run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
     run("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
