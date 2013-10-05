@@ -12,7 +12,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # --------------------------------------------------------
 
 username = 'root'
-ip = '198.199.77.160'
+ip = '192.168.0.1'
 prod_server = '{0}@{1}'.format(username, ip)
 project_path = '/home/'
 # env_path = '/home/'
