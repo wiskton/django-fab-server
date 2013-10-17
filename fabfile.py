@@ -12,8 +12,8 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # --------------------------------------------------------
 
 username = 'root'
-ip = '198.199.77.160'
-prod_server = '{0}@{1}'.format(username, ip)
+host = '192.168.0.1'
+prod_server = '{0}@{1}'.format(username, host)
 project_path = '/home/'
 # env_path = '/home/'
 
@@ -45,6 +45,12 @@ env.hosts = [prod_server]
 # --------------------------------------------------------
 
 def newserver():
+
+    '''
+    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libfreetype.so /usr/lib/
+    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libjpeg.so /usr/lib/
+    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libz.so /usr/lib/
+    '''
     """Configurar e instalar todos pacotes necessários para servidor"""
     log('Configurar e instalar todos pacotes necessários para servidor')
     update_server()
@@ -107,6 +113,9 @@ def novaconta():
 
     # da permissao para o usuario no diretorio
     sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
+
+    supervisor_stop()
+    supervisor_start()
 
     # log para salvar no docs
     log('Anotar dados da conta: {0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha))
@@ -249,6 +258,7 @@ def build_server():
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
     log('Instalando todos pacotes necessários')
+    sudo('sudo apt-get install python-imaging')
     sudo('apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
@@ -297,7 +307,6 @@ def restart():
     nginx_reload()
     supervisor_stop()
     supervisor_start()
-    supervisor_restart()
 
 def reboot():
     sudo('reboot')
@@ -434,6 +443,7 @@ def python_local():
     local('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     local('sudo pip install -U distribute')
     local('sudo pip install virtualenvwrapper')
+    local('sudo apt-get install python-imaging')
     # local('cp ~/.bashrc ~/.bashrc_bkp')
     # local('cat ~/.bashrc inc/bashrc > ~/.bashrc')
     # local('source ~/.bashrc')
