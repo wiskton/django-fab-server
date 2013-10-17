@@ -1,4 +1,4 @@
-django-fab-server
+Utilizando script para Servidor
 =================
 
 <p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
@@ -14,24 +14,30 @@ Configura um novo servidor instalando todos pacotes necessários:
 
     fab newserver
 
+Reiniciar nginx e supervisor
 
-<h2>Contas</h2>
+    fab restart
 
-<p>cria um usuario e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos.</p>
+Contas
+=================
+
+<p>Cria um usuário e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos.</p>
 
 Criar uma nova conta no servidor:
 
     fab novaconta
 
 
-Exclui uma nova conta no servidor:
+Exclui uma conta no servidor:
 
     fab delconta
 
 
-<h2>Clonar projeto no servidor</h2>
 
-<p>Estrutura dos projetos - são utilizados 3 dominios media e static separados</p>
+Clonar projeto no servidor
+=================
+
+<p>Estrutura dos projetos - são utilizados 3 domínios media e static separados.</p>
 
 <ul>
     <li>www.willemallan.com.br ou willemallan.com.br</li>
@@ -56,37 +62,69 @@ exemplo do settings.py do projeto:
         os.path.join(PROJECT_PATH, '..', 'templates')
     )
 
-
-git - repositório
+<h3>Clonando projeto</h3>
 
 <p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
-<p>Quando vai clonar um projeto eu utilizo a chave do usuário criado. E no bitbucket coloco no deploy key do repositório assim o servidor só pode ler os arquivos e nunca pode commitar evitando problemas que acontecem de alguém ir no servidor e arrumar de lá e não dar commit.</p>
+<p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
 
-Roteiro:
+
+Ativa o env na sua máquina:
 
     workon willemallan
+
+
+Loga no servidor do projeto:
     fab login
 
+
+Gera a chave no servidor (pegar a chave adicionar no projeto do bitbucket deploy key):
     ssh-keygen && cat ~/.ssh/id_rsa.pub
-    pegar chave adicionar no projeto do bitbucket
+
+
+Clona projeto no ar:
     git clone git@bitbucket.org:willemarf/willemallan.git project
 
+
+Ativa o env no ar:
     . env/bin/activate
+
+
+Atualiza distribute no env:
     easy_install -U distribute
+
+
+Instala requirements:
     pip install -r project/requirements.txt
+
+
+Cria as tabelas do django
     python project/manage.py syncdb
+
+
+Cria as tabelas versionadas no south
     python project/manage.py migrate
+
+
+Copia os arquivos estaticos
     python project/manage.py collectstatic --noinput
+
+
+Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
     python project/manage.py runserver 8060
+
+
+Rode o projeto com o gunicorn para testar se ele esta instalado no env e no INSTALLED_APPS.
     python project/manage.py run_gunicorn
+
+
+Sai do servidor:
     exit
+
+
+Atualiza o repositório no servidor e reinicia a aplicação do supervisor:
     fab deploy servidor2 restart
 
-
-reiniciar nginx e supervisor
-
-    fab restart
-
+<p>Servidor2 muda para root pois para reiniciar a aplicação precisa ser o root e não o usuário da conta.</p>
 
 Outros comandos
 ================

@@ -350,6 +350,8 @@ def supervisor_stop():
 def supervisor_restart():
     """Restart supervisor no servidor"""
     log('restart supervisor')
+    sudo('/etc/init.d/supervisor stop')
+    sudo('/etc/init.d/supervisor start')
     sudo('/etc/init.d/supervisor restart')
 
 
