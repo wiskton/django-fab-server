@@ -80,28 +80,25 @@ git - repositório
 <p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
 <p>Quando vai clonar um projeto eu utilizo a chave do usuário criado. E no bitbucket coloco no deploy key do repositório assim o servidor só pode ler os arquivos e nunca pode commitar evitando problemas que acontecem de alguém ir no servidor e arrumar de lá e não dar commit.</p>
 
-workon willemallan
-fab login
+Roteiro:
 
-ssh-keygen && cat ~/.ssh/id_rsa.pub
-pegar chave adicionar no projeto do bitbucket
-git clone git@bitbucket.org:willemarf/willemallan.git project
+    workon willemallan
+    fab login
 
-. env/bin/activate
-easy_install -U distribute
-pip install -r project/requirements.txt
-python project/manage.py syncdb
-python project/manage.py migrate
-python project/manage.py collectstatic --noinput
-python project/manage.py runserver 8060
-python project/manage.py run_gunicorn
-exit
-fab deploy servidor2 restart
+    ssh-keygen && cat ~/.ssh/id_rsa.pub
+    pegar chave adicionar no projeto do bitbucket
+    git clone git@bitbucket.org:willemarf/willemallan.git project
 
-
-
-
-
+    . env/bin/activate
+    easy_install -U distribute
+    pip install -r project/requirements.txt
+    python project/manage.py syncdb
+    python project/manage.py migrate
+    python project/manage.py collectstatic --noinput
+    python project/manage.py runserver 8060
+    python project/manage.py run_gunicorn
+    exit
+    fab deploy servidor2 restart
 
 
 reiniciar nginx e supervisor
