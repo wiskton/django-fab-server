@@ -31,7 +31,7 @@ Comandos disponíveis:
     gera_senha          Gera uma senha - parametro tamanho
     git_local           Instalando git
     git_server          Instalar git no servidor
-    log
+    log                 Imprimi um texto com formatação
     login               Acessa o servidor
     mysql_local         Instalando MySQL
     mysql_server        Instalar MySQL no servidor
@@ -60,3 +60,4 @@ Comandos disponíveis:
     upgrade_server      Atualizar programas no servidor
     upload_public_key   Faz o upload da chave ssh para o servidor
     userdel             Deletar usuário no servidor
+    reboot              Reiniciar o servidor

@@ -1,10 +1,25 @@
 django-fab-server
 =================
 
+Como funciona?
+
+É um fabric que acessa o servidor e instala todas dependencia… opção local e servidor.
+
+<b>Local</b> é para configurar uma maquina linux para trabalhar com python/django.
+<b>Servidor</b> é para configurar um servidor linux para rodar sites em python/django.
+
+
+requirements:
+
+    ubuntu > 12.04
+    fabric==1.6.0
+    jinja2==2.7
+
+
 Instalar na máquina pip e fabric distribuições linux badeadas no debian:
 
     sudo apt-get install python-pip
-    sudo pip install fabric
+    pip install -r requirements.txt
 
 
 Alterar configurações no fabfile.py:
@@ -17,43 +32,77 @@ Configura um novo servidor instalando todos pacotes necessários:
 
     fab newserver
 
+
+<h2>Contas</h2>
+
+<p>cria um usuario e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos.</p>
+
 Criar uma nova conta no servidor:
 
     fab novaconta
 
-não esquecer de editar o arquivo /home/conta/nginx.conf e /home/conta/supervisord.ini alterando para o domínio correto.
+
+Exclui uma nova conta no servidor:
+
+    fab delconta
 
 
-Reiniciar nginx e supervisor:
+<h2>Clonar projeto no servidor</h2>
 
-    fab restart
+<p>Estrutura dos projetos - são utilizados 3 dominios media e static separados</p>
 
-clonar projeto do bitbucket
+<ul>
+    <li>www.willemallan.com.br ou willemallan.com.br</li>
+    <li>static.willemallan.com.br - /home/willemallan/project/static</li>
+    <li>media.willemallan.com.br - /home/willemallan/project/media</li>
+</ul>
 
-    fab login
-    su - NOVACONTA
-    ssh-keygen && cat ~/.ssh/id_rsa.pub
-    git clone git@bitbucket.org:willemarf/REPOSITORIO.git project
-    source env/bin/activate
-    pip install -r project/requirements.txt
+exemplo do settings.py do projeto:
 
-criar pasta para collectstatic (depende do projeto):
+    MEDIA_ROOT = os.path.join(PROJECT_PATH, '..', 'media')
+    MEDIA_URL = 'http://media.willemallan.com.br/'
 
-    mkdir ~/project/static/
 
-dependendo do projeto precisa criar os links simbolicos de media e static, o nginx cai na pasta raiz então precisa ter os diretórios static e media:
+    STATIC_ROOT = os.path.join(PROJECT_PATH, '..', 'static')
+    STATIC_URL = 'http://static.willemallan.com.br/'
 
-    ln -s project/static static
-    ln -s project/media media
+    STATICFILES_DIRS = (
+        os.path.join(PROJECT_PATH, 'static'),
+    )
 
-criando as tabelas da aplicação:
+    TEMPLATE_DIRS = (
+        os.path.join(PROJECT_PATH, '..', 'templates')
+    )
 
-    python project/manage.py syncdb
-    python project/manage.py migrate
 
-rodar projeto para ver se ocorreu tudo bem:
+git - repositório
 
-    python project/manage.py runserver 8000
+<p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
+<p>Quando vai clonar um projeto eu utilizo a chave do usuário criado. E no bitbucket coloco no deploy key do repositório assim o servidor só pode ler os arquivos e nunca pode commitar evitando problemas que acontecem de alguém ir no servidor e arrumar de lá e não dar commit.</p>
+
+workon willemallan
+fab login
+
+ssh-keygen && cat ~/.ssh/id_rsa.pub
+pegar chave adicionar no projeto do bitbucket
+git clone git@bitbucket.org:willemarf/willemallan.git project
+
+. env/bin/activate
+easy_install -U distribute
+pip install -r project/requirements.txt
+python project/manage.py syncdb
+python project/manage.py migrate
+python project/manage.py collectstatic --noinput
+python project/manage.py runserver 8060
+python project/manage.py run_gunicorn
+exit
+fab deploy servidor2 restart
+
+
+
+
+
+
 
 reiniciar nginx e supervisor
 
@@ -70,3 +119,14 @@ Reinicie NGINX
 Reinicie SUPERVISOR
 
     fab supervisor_restart
+
+
+
+
+
+
+
+
+
+
+

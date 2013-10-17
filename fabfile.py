@@ -309,6 +309,7 @@ def restart():
     supervisor_start()
 
 def reboot():
+    """Reinicia o servidor"""
     sudo('reboot')
 
 # SUPERVISOR APP
