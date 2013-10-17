@@ -18,8 +18,8 @@ Reiniciar nginx e supervisor
 
     fab restart
 
-Contas
-=================
+
+<h3>Contas</h3>
 
 <p>Cria um usuário e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos.</p>
 
@@ -33,9 +33,7 @@ Exclui uma conta no servidor:
     fab delconta
 
 
-
-Clonar projeto no servidor
-=================
+<h3>Clonar projeto no servidor</h3>
 
 <p>Estrutura dos projetos - são utilizados 3 domínios media e static separados.</p>
 
