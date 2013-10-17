@@ -1,6 +1,8 @@
 django-fab-server
 =================
 
+<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
+
 
 Alterar configurações no fabfile.py:
 

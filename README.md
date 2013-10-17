@@ -3,8 +3,7 @@ django-fab-server
 
 Como funciona?
 
-<p>É um fabric que acessa o servidor e instala todas dependencia… opção local e servidor.</p>
-<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
+<p>É um fabric que acessa o servidor e instala todas dependencias.</p>
 
 requirements:
 
@@ -13,7 +12,7 @@ requirements:
     jinja2==2.7
 
 
-Instalar na máquina pip e fabric distribuições linux badeadas no debian:
+Instalar na máquina pip e os requirements em distribuições linux badeadas no debian:
 
     sudo apt-get install python-pip
     pip install -r requirements.txt
