@@ -35,6 +35,8 @@ Exclui uma conta no servidor:
 
 <h3>Clonar projeto no servidor</h3>
 
+<p><a href="https://github.com/willemallan/django-fab-server/blob/master/projeto/fabfile.py">fabfile</a> usado no projeto para subir os dados no servidor.</p>
+
 <p>Estrutura dos projetos - são utilizados 3 domínios media e static separados.</p>
 
 <ul>
