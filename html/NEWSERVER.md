@@ -74,46 +74,57 @@ Ativa o env na sua máquina:
 
 
 Loga no servidor do projeto:
+
     fab login
 
 
 Gera a chave no servidor (pegar a chave adicionar no projeto do bitbucket deploy key):
+
     ssh-keygen && cat ~/.ssh/id_rsa.pub
 
 
 Clona projeto no ar:
+
     git clone git@bitbucket.org:willemarf/willemallan.git project
 
 
 Ativa o env no ar:
+
     . env/bin/activate
 
 
 Atualiza distribute no env:
+
     easy_install -U distribute
 
 
 Instala requirements:
+
     pip install -r project/requirements.txt
 
 
-Cria as tabelas do django
+Cria as tabelas do django:
+
     python project/manage.py syncdb
 
 
 Cria as tabelas versionadas no south
+
     python project/manage.py migrate
 
 
 Copia os arquivos estaticos
+
     python project/manage.py collectstatic --noinput
 
 
 Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
+
     python project/manage.py runserver 8060
 
 
-Rode o projeto com o gunicorn para testar se ele esta instalado no env e no INSTALLED_APPS.
+Rode o projeto com o gunicorn para testar se ele esta instalado no env e no INSTALLED_APPS:
+
     python project/manage.py run_gunicorn
 
 
@@ -122,6 +133,7 @@ Sai do servidor:
 
 
 Atualiza o repositório no servidor e reinicia a aplicação do supervisor:
+
     fab deploy servidor2 restart
 
 <p>Servidor2 muda para root pois para reiniciar a aplicação precisa ser o root e não o usuário da conta.</p>
