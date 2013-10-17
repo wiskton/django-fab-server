@@ -1,17 +1,32 @@
 django-fab-server
 =================
 
-Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu
+Como funciona?
+
+<p>É um fabric que acessa o servidor e instala todas dependencia… opção local e servidor.</p>
+<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
+
+requirements:
+
+    ubuntu > 12.04
+    fabric==1.6.0
+    jinja2==2.7
+
+
+Instalar na máquina pip e fabric distribuições linux badeadas no debian:
+
+    sudo apt-get install python-pip
+    pip install -r requirements.txt
 
 
 Configurando uma máquina para rodar python/django e mysql:
 
 <ul>
     <li>
-        <a href="html/NEWDEV.md">Local</a>
+        <a href="html/NEWDEV.md"><b>Local</b></a> é para configurar uma maquina linux para trabalhar com python/django.
     </li>
     <li>
-        <a href="html/NEWSERVER.md">Servidor</a>
+        <a href="html/NEWSERVER.md"><b>Servidor</b></a> é para configurar um servidor linux para rodar sites em python/django.
     </li>
 </ul>
 

@@ -1,26 +1,6 @@
 django-fab-server
 =================
 
-Como funciona?
-
-É um fabric que acessa o servidor e instala todas dependencia… opção local e servidor.
-
-<b>Local</b> é para configurar uma maquina linux para trabalhar com python/django.
-<b>Servidor</b> é para configurar um servidor linux para rodar sites em python/django.
-
-
-requirements:
-
-    ubuntu > 12.04
-    fabric==1.6.0
-    jinja2==2.7
-
-
-Instalar na máquina pip e fabric distribuições linux badeadas no debian:
-
-    sudo apt-get install python-pip
-    pip install -r requirements.txt
-
 
 Alterar configurações no fabfile.py:
 
