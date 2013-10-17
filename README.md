@@ -7,14 +7,35 @@ Como funciona?
 
 requirements:
 
-    ubuntu > 12.04
+    servidor ubuntu > 12.04
+    pip
     fabric==1.6.0
     jinja2==2.7
 
 
-Instalar na máquina pip e os requirements em distribuições linux badeadas no debian:
+Instalando na máquina o pip em distribuições linux badeadas no debian:
 
     sudo apt-get install python-pip
+
+
+Crie um env para o django fab server:
+
+    mkvirtualenv djangofabserver
+
+
+Clone o projeto na máquina na sua pasta de projetos:
+
+    git clone git@github.com:willemallan/django-fab-server.git
+
+
+Entrar no diretório do django fab server:
+
+    cd django-fab-server
+    setvirtualenvproject
+
+
+Instale os requirements do django fab server:
+
     pip install -r requirements.txt
 
 
