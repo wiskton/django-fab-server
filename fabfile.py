@@ -258,7 +258,7 @@ def build_server():
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
     log('Instalando todos pacotes necessários')
-    sudo('sudo apt-get install python-imaging')
+    sudo('sudo apt-get -y install python-imaging')
     sudo('apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     run('pip install -U distribute')
 
