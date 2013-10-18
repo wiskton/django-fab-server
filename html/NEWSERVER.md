@@ -7,7 +7,7 @@ Utilizando script para Servidor
 Alterar configurações no fabfile.py:
 
     username = 'root'
-    ip = '192.168.1.111'
+    host = '192.168.1.111'
 
 
 Configura um novo servidor instalando todos pacotes necessários:

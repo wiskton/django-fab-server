@@ -7,12 +7,21 @@ from fabric.contrib.files import upload_template
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
-# --------------------------------------------------------
-# ALTERAR CONFIGURAÇÕES BASEADAS NO SEUS SERVIDOR
-# --------------------------------------------------------
+# ----------------------------------------------------------------
+# ALTERAR CONFIGURAÇÕES BASEADAS NO SEUS SERVIDOR E MAQUINA LOCAL
+# ----------------------------------------------------------------
 
+# SERVIDOR
 username = 'root'
 host = '192.168.0.1'
+
+# LOCAL
+bitbucket_user = 'willemarf'
+bitbucket_project_default = 'django14'
+folder_project_local = '~/projetos/'
+
+# --------------------------------------------------------
+
 prod_server = '{0}@{1}'.format(username, host)
 project_path = '/home/'
 # env_path = '/home/'
@@ -46,11 +55,6 @@ env.hosts = [prod_server]
 
 def newserver():
 
-    '''
-    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libfreetype.so /usr/lib/
-    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libjpeg.so /usr/lib/
-    sudo ln -s /usr/lib/`uname -i`-linux-gnu/libz.so /usr/lib/
-    '''
     """Configurar e instalar todos pacotes necessários para servidor"""
     log('Configurar e instalar todos pacotes necessários para servidor')
     update_server()
@@ -78,6 +82,14 @@ def newserver():
     local('scp inc/supervisord_server.conf {0}:/etc/supervisor/'.format(prod_server))
     run('mv /etc/supervisor/supervisord_server.conf /etc/supervisor/supervisord.conf')
     supervisor_restart()
+
+    # funcionar thumbnail no ubuntu 64bits
+    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libfreetype.so /usr/lib/")
+    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libjpeg.so /usr/lib/")
+    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libz.so /usr/lib/")
+
+    log('Reiniciando a máquina')
+    reboot()
 
 # cria uma conta no servidor
 def novaconta():
@@ -266,7 +278,7 @@ def python_server():
 def mysql_server():
     """Instalar MySQL no servidor"""
     log('Instalando MySQL')
-    sudo('apt-get -y install mysql-server libmysqlclient-dev')
+    sudo('apt-get -y install mysql-server libmysqlclient-dev') # nao perguntar senha do mysql pedir senha antes
 
 
 def git_server():
@@ -278,7 +290,8 @@ def outros_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     sudo('apt-get -y install nginx supervisor')
-    sudo('apt-get -y install proftpd mercurial rubygems')
+    sudo('apt-get -y install mercurial rubygems')
+    # sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
     sudo('easy_install -U distribute')
 
@@ -352,7 +365,7 @@ def supervisor_restart():
     log('restart supervisor')
     sudo('/etc/init.d/supervisor stop')
     sudo('/etc/init.d/supervisor start')
-    sudo('/etc/init.d/supervisor restart')
+    # sudo('/etc/init.d/supervisor restart')
 
 
 # NGINX
@@ -387,20 +400,21 @@ def nginx_reload():
 # cria projeto local
 def newproject():
     """ Criar novo projeto local """
-    log('Criando novo projeto local')
+    log('Criando novo projeto')
+    log('Cria a conta no bitbucket com o nome do projeto vázio que o script se encarregará do resto')
 
     conta = raw_input('Digite o nome do projeto: ')
 
-    local('echo "clonando projeto padrão do bitbucket - django 1.4"')
-    local('git clone git@github.com:willemallan/django14.git ~/projetos/{0}'.format(conta))
-    local('cd ~/projetos/{0}/app'.format(conta))
+    local('echo "clonando projeto %s"' % bitbucket_project_default)
+    local('git clone git@github.com:{0}/{1}.git {2}{3}'.format(bitbucket_user, bitbucket_project_default, folder_project_local, conta))
+    local('cd {0}{1}'.format(folder_project_local, conta))
     local('mkvirtualenv {0}'.format(conta))
     local('setvirtualenvproject')
-    local('pip install -r ../requirements.txt')
-    local('rm -rf ~/projetos/{0}/.git'.format(conta))
+    local('pip install -r requirements.txt')
+    local('rm -rf {0}{1}/.git'.format(folder_project_local, conta))
     local('rm -rf README.md')
     local('git init')
-    local('git remote add origin ssh://git@bitbucket.org/willemarf/{0}.git'.format(conta))
+    local('git remote add origin ssh://git@bitbucket.org/{0}/{1}.git'.format(bitbucket_user, conta))
 
 # configura uma maquina local ubuntu
 def newdev():
