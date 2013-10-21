@@ -13,20 +13,19 @@ requirements:
     jinja2==2.7
 
 
+Clone o projeto na máquina na sua pasta de projetos:
+
+    git clone git@github.com:willemallan/django-fab-server.git
+
+
 Instalando na máquina o pip em distribuições linux badeadas no debian:
 
     sudo apt-get install python-pip
 
 
-Crie um env para o django fab server:
+Não precisa criar um env pode até instalar o fabric e o jinja2 no sistema caso prefira crie um env:
 
     mkvirtualenv djangofabserver
-
-
-Clone o projeto na máquina na sua pasta de projetos:
-
-    git clone git@github.com:willemallan/django-fab-server.git
-
 
 Entrar no diretório do django fab server:
 
