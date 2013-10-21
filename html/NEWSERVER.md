@@ -68,54 +68,9 @@ exemplo do settings.py do projeto:
 <p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
 
 
-Ativa o env na sua máquina:
+Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
 
-    workon willemallan
-
-
-Loga no servidor do projeto:
-
-    fab login
-
-
-Gera a chave no servidor (pegar a chave adicionar no projeto do bitbucket deploy key):
-
-    ssh-keygen && cat ~/.ssh/id_rsa.pub
-
-
-Clona projeto no ar:
-
-    git clone git@bitbucket.org:willemarf/willemallan.git project
-
-
-Ativa o env no ar:
-
-    . env/bin/activate
-
-
-Atualiza distribute no env:
-
-    easy_install -U distribute
-
-
-Instala requirements:
-
-    pip install -r project/requirements.txt
-
-
-Cria as tabelas do django:
-
-    python project/manage.py syncdb
-
-
-Cria as tabelas versionadas no south
-
-    python project/manage.py migrate
-
-
-Copia os arquivos estaticos
-
-    python project/manage.py collectstatic --noinput
+    fab config
 
 
 Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
@@ -135,6 +90,7 @@ Sai do servidor:
 Atualiza o repositório no servidor e reinicia a aplicação do supervisor:
 
     fab deploy servidor2 restart
+
 
 <p>Servidor2 muda para root pois para reiniciar a aplicação precisa ser o root e não o usuário da conta.</p>
 

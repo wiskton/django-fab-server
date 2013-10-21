@@ -1,14 +1,30 @@
 # -*- coding: utf-8 -*-
 from fabric.api import *
 
-username = 'willemallan'
+username = '__USER__'
 host = '192.168.0.1'
+repositorio = 'git@bitbucket.org:__USER__/__REPOSITORIO__.git'
 
 # -----------------------------------------------------------------------
 prod_server = '%s@%s' % (username, host)
 env.project_path = '/home/%s/project/' % username
 env.env_path = '/home/%s/env/bin/activate' % username
 env.hosts = [prod_server]
+
+def config():
+    log('COPIAR CÓDIGO GERADO E COLOCAR NAS CHAVES DE IMPLANTAÇÃO DO PROJETO')
+    run('ssh-keygen && cat ~/.ssh/id_rsa.pub')
+    resp = raw_input('Após copiar a chave e adicionar as chaves no repositório, clique ENTER para continuar!!!')
+    run('git clone %s project' % repositorio)
+    with cd(env.project_path):
+        run('easy_install -U distribute')
+        run('pip install -r project/requirements.txt')
+        run('python project/manage.py syncdb')
+        run('python project/manage.py migrate')
+        run('python project/manage.py collectstatic --noinput')
+    log('RODAR OS DOIS COMANDOS NO SERVIDOR PARA TESTAR SE TEM ALGUM ERRO NO PROJETO! \npython project/manage.py runserver 8060 \npython project/manage.py run_gunicorn')
+    login()
+    log('Executar agora o comando: fab deploy servidor2 restart')
 
 def deploy():
     """faz o deploy da aplicação no servidor"""
