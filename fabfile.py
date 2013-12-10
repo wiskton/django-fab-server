@@ -13,12 +13,12 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 username = 'root'
-host = '192.168.0.1'
+host = '127.0.0.1'
 
 # LOCAL
 bitbucket_user = 'willemarf'
 bitbucket_project_default = 'django14'
-folder_project_local = '~/projetos/'
+folder_project_local = '~/projetos_python/'
 
 # --------------------------------------------------------
 
