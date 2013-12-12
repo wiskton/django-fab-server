@@ -98,7 +98,7 @@ Sai do servidor:
 
 Atualiza o repositório no servidor e reinicia a aplicação do supervisor:
 
-    fab deploy servidor2 restart
+    fab deploy
 
 
 <p>Servidor2 muda para root pois para reiniciar a aplicação precisa ser o root e não o usuário da conta.</p>
