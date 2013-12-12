@@ -48,8 +48,8 @@ def server():
 def restart():
     """reiniciando aplicacao"""
     log('reiniciando aplicação')
-    sudo('supervisorctl stop %s' % username)
-    sudo('supervisorctl start %s' % username)
+    run('supervisorctl stop %s' % username)
+    run('supervisorctl start %s' % username)
 
 def gunicorn():
     """inicia o servidor de desenvolvimento local usando gunicorn"""
