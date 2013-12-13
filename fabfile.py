@@ -14,10 +14,11 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # SERVIDOR
 username = 'root'
 host = '192.168.0.1'
+chave = 'chave.pem'
 
 # LOCAL
-bitbucket_user = 'willemarf'
-bitbucket_project_default = 'django14'
+bitbucket_user = 'conta'
+bitbucket_project_default = 'projeto_padrao'
 folder_project_local = '~/projetos/'
 
 # --------------------------------------------------------
@@ -298,8 +299,10 @@ def outros_server():
 
 def login():
     """Acessa o servidor"""
-    local("ssh %s" % prod_server)
-
+    if chave:
+        local("ssh %s -i %s" % (prod_server, chave))
+    else:
+        local("ssh %s" % prod_server)
 
 def upload_public_key():
     """Faz o upload da chave ssh para o servidor"""
