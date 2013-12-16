@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
 
-from contextlib import contextmanager
 from fabric.api import *
 from fabric.contrib.files import upload_template
 
@@ -12,7 +11,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # ----------------------------------------------------------------
 
 # SERVIDOR
-username = 'root'
+user = 'ubuntu'
 host = '192.168.0.1'
 chave = 'chave.pem'
 
@@ -23,9 +22,8 @@ folder_project_local = '~/projetos/'
 
 # --------------------------------------------------------
 
-prod_server = '{0}@{1}'.format(username, host)
+prod_server = '{0}@{1}'.format(user, host)
 project_path = '/home/'
-# env_path = '/home/'
 
 # diretório do conf.d do supervisor
 env.supervisor_conf_d_path = '/etc/supervisor/conf.d'
@@ -47,8 +45,9 @@ env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 
 env.hosts = [prod_server]
 
+# endereco da chave
+env.key_filename = chave
 
-# FALTA NGINX E SUPERVISOR PARA CADA USUARIO AUTOMATICO - CRIAR SCRIPT
 
 # --------------------------------------------------------
 # SERVIDOR
@@ -58,6 +57,9 @@ def newserver():
 
     """Configurar e instalar todos pacotes necessários para servidor"""
     log('Configurar e instalar todos pacotes necessários para servidor')
+
+    update_server()
+
     update_server()
     upgrade_server()
 
@@ -72,16 +74,14 @@ def newserver():
     update_server()
     upgrade_server()
 
-    # altera o arquivo nginx.conf
-    run('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
-    local('scp inc/nginx_server.conf {0}:/etc/nginx'.format(prod_server))
-    run('mv /etc/nginx/nginx_server.conf /etc/nginx/nginx.conf')
+    # nginx
+    sudo('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
+    write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
 
-    # altera o arquivo supervisor.conf
-    run('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
-    local('scp inc/supervisord_server.conf {0}:/etc/supervisor/'.format(prod_server))
-    run('mv /etc/supervisor/supervisord_server.conf /etc/supervisor/supervisord.conf')
+    # supervisor
+    sudo('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
+    write_file('supervisord_server.conf', '/etc/supervisor/supervisord.conf')
     supervisor_restart()
 
     # funcionar thumbnail no ubuntu 64bits
@@ -98,10 +98,14 @@ def novaconta():
     log('Criar uma nova conta do usuário no servidor')
 
     # criando usuario
-    env.conta = raw_input('Digite o nome da conta: ')
-    env.dominio = raw_input('Digite o domínio do site: ')
-    env.porta = raw_input('Digite o número da porta: ')
-    env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
+    if env.conta:
+        env.conta = raw_input('Digite o nome da conta: ')
+    if env.dominio:
+        env.dominio = raw_input('Digite o domínio do site: ')
+    if env.porta:
+        env.porta = raw_input('Digite o número da porta: ')
+    if env.mysql_password:
+        env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
     # cria usuario no linux
     user_senha = gera_senha(12)
@@ -112,13 +116,8 @@ def novaconta():
     run('touch /home/{0}/logs/error.log'.format(env.conta))
     run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
 
-    configure_ngix()
+    configure_nginx()
     configure_supervisor()
-
-    # local('scp inc/nginx.conf {0}:/home/{1}'.format(prod_server, conta))
-    # local('scp inc/supervisor.ini {0}:/home/{1}'.format(prod_server, conta))
-    # run("sed 's/willemallan/{0}/' /home/{0}/supervisor.ini > /home/{0}/supervisor.ini".format(conta))
-    # run("sed 's/willemallan/{0}/' /home/{0}/nginx.conf > /home/{0}/nginx.conf".format(conta))
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
@@ -127,46 +126,25 @@ def novaconta():
     # da permissao para o usuario no diretorio
     sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
 
-    supervisor_stop()
-    supervisor_start()
+    # nginx
+    write_file('nginx.conf', os.path.join('%s%s' % (project_path, env.conta), 'nginx.conf'))
+    # supervisor
+    write_file('supervisor.ini', os.path.join('%s%s' % (project_path, env.conta), 'supervisor.ini'))
 
     # log para salvar no docs
     log('Anotar dados da conta: {0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha))
 
-
-# configure_ngix
-def configure_ngix():
+def write_file(filename, destination):
 
     upload_template(
-            filename='nginx.conf',
-            destination=os.path.join(
-                '%s%s' % (project_path, env.conta),
-                'nginx.conf'
-            ),
+            filename=filename,
+            destination=destination,
             template_dir=os.path.join(CURRENT_PATH, 'inc'),
             context=env,
             use_jinja=True,
             use_sudo=True,
             backup=False
         )
-
-
-# configure_ngix
-def configure_supervisor():
-
-    upload_template(
-            filename='supervisor.ini',
-            destination=os.path.join(
-                '%s%s' % (project_path, env.conta),
-                'supervisor.ini'
-            ),
-            template_dir=os.path.join(CURRENT_PATH, 'inc'),
-            context=env,
-            use_jinja=True,
-            use_sudo=True,
-            backup=False
-        )
-
 
 # deleta uma conta no servidor
 def delconta():
@@ -273,7 +251,7 @@ def python_server():
     log('Instalando todos pacotes necessários')
     sudo('sudo apt-get -y install python-imaging')
     sudo('apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
-    run('pip install -U distribute')
+    # sudo('easy_install -U distribute')
 
 
 def mysql_server():
@@ -294,13 +272,12 @@ def outros_server():
     sudo('apt-get -y install mercurial rubygems')
     # sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
-    sudo('easy_install -U distribute')
 
 
 def login():
     """Acessa o servidor"""
     if chave:
-        local("ssh %s -i %s" % (prod_server, chave))
+        local("ssh %s -i %s" % (prod_server, env.key_filename))
     else:
         local("ssh %s" % prod_server)
 
