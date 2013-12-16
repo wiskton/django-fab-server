@@ -11,9 +11,9 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # ----------------------------------------------------------------
 
 # SERVIDOR
-user = 'ubuntu'
-host = '54.232.177.75'
-chave = 'chave.pem' # caminho da chave nome_arquivo.pem
+user = 'root'
+host = '192.168.0.1'
+chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
 bitbucket_user = 'conta'
