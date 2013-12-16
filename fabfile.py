@@ -13,7 +13,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # SERVIDOR
 user = 'ubuntu'
 host = '192.168.0.1'
-chave = 'chave.pem'
+chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
 bitbucket_user = 'conta'
@@ -98,26 +98,26 @@ def novaconta():
     log('Criar uma nova conta do usuário no servidor')
 
     # criando usuario
-    if env.conta:
+    if not env.conta:
         env.conta = raw_input('Digite o nome da conta: ')
-    if env.dominio:
+    if not env.dominio:
         env.dominio = raw_input('Digite o domínio do site: ')
-    if env.porta:
+    if not env.porta:
         env.porta = raw_input('Digite o número da porta: ')
-    if env.mysql_password:
+    if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
     # cria usuario no linux
     user_senha = gera_senha(12)
     adduser(env.conta, user_senha)
 
-    run('mkdir /home/{0}/logs'.format(env.conta))
-    run('touch /home/{0}/logs/access.log'.format(env.conta))
-    run('touch /home/{0}/logs/error.log'.format(env.conta))
-    run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
+    sudo('mkdir /home/{0}/logs'.format(env.conta))
+    sudo('touch /home/{0}/logs/access.log'.format(env.conta))
+    sudo('touch /home/{0}/logs/error.log'.format(env.conta))
+    sudo('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
 
-    configure_nginx()
-    configure_supervisor()
+    write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
+    write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
@@ -126,13 +126,12 @@ def novaconta():
     # da permissao para o usuario no diretorio
     sudo('chown -R {0}:{0} /home/{0}'.format(env.conta))
 
-    # nginx
-    write_file('nginx.conf', os.path.join('%s%s' % (project_path, env.conta), 'nginx.conf'))
-    # supervisor
-    write_file('supervisor.ini', os.path.join('%s%s' % (project_path, env.conta), 'supervisor.ini'))
+    nginx_restart()
+    supervisor_restart()
 
     # log para salvar no docs
-    log('Anotar dados da conta: {0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha))
+    log('Anotar dados da conta')
+    print '{0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha)
 
 def write_file(filename, destination):
 
@@ -184,13 +183,13 @@ def newbase(conta=None, banco_senha=None):
     log('NEW DATABASE {0}'.format(conta))
 
     # cria acesso para o banco local
-    run("echo CREATE DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
-    run("echo \"CREATE USER '{0}'@'localhost' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
-    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo CREATE DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo \"CREATE USER '{0}'@'localhost' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
+    sudo("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
     # cria acesso para o banco remoto
-    run("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
-    run("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo \"CREATE USER '{0}'@'%' IDENTIFIED BY '{1}'\" | mysql -u root -p{2}".format(conta, banco_senha, env.mysql_password))
+    sudo("echo \"GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
 
 # MYSQL - deleta o usuario e o banco de dados
@@ -200,9 +199,9 @@ def dropbase(conta=None):
         conta = raw_input('Digite o nome do banco: ')
     if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
-    run("echo DROP DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
-    run("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
-    run("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo DROP DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo \"DROP USER '{0}'@'localhost'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
+    sudo("echo \"DROP USER '{0}'@'%'\" | mysql -u root -p{1}".format(conta, env.mysql_password))
 
 
 # LINUX - deleta o usuario
