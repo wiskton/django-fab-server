@@ -118,7 +118,8 @@ def novaconta():
 
     write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
     write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
-
+    write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
+    
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
     newbase(env.conta, banco_senha)
