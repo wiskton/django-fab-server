@@ -20,6 +20,7 @@ bitbucket_user = 'conta'
 bitbucket_project_default = 'projeto_padrao'
 folder_project_local = '~/projetos/'
 
+# copiar as variaveis de cima e jogar no local_settings para substituir
 try:
     from local_settings import *
 except ImportError:
