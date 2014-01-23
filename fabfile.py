@@ -12,13 +12,18 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = 'root'
-host = '162.243.133.73'
+host = '192.168.0.1'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
 bitbucket_user = 'conta'
 bitbucket_project_default = 'projeto_padrao'
 folder_project_local = '~/projetos/'
+
+try:
+    from local_settings import *
+except ImportError:
+    pass
 
 # --------------------------------------------------------
 
@@ -119,7 +124,7 @@ def novaconta():
     write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
     write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
     write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
-    
+
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
     newbase(env.conta, banco_senha)
