@@ -40,4 +40,3 @@ nosetests.xml
 .project
 .pydevproject
 local_settings.py
-chave.pem
