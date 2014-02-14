@@ -67,19 +67,12 @@ exemplo do settings.py do projeto:
 <p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
 <p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
 
+Baixar esse <a href="https://github.com/willemallan/django-fab-server/blob/master/projeto/fabfile.py">fabfile</a> para o projeto.
+
 
 Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
 
-    workon projeto
-    fab login
-    ssh-keygen && cat ~/.ssh/id_rsa.pub
-    git clone git@bitbucket.org:__CONTA_BITBUCKET__/__PROJETO__.git project
-    . env/bin/activate
-    easy_install -U distribute
-    pip install -r project/requirements.txt
-    python project/manage.py syncdb
-    python project/manage.py migrate
-    python project/manage.py collectstatic --noinput
+    fab config (Instala o distribute e os requirements.txt no env. Executa o syncdb, migrate e collectstatic)
 
 
 Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
