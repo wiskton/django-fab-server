@@ -5,5 +5,5 @@ chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
 bitbucket_user = 'willemarf'
-bitbucket_project_default = 'django14'
+bitbucket_project_default = 'django16'
 folder_project_local = '~/projetos_python/'
