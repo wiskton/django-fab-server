@@ -67,6 +67,8 @@ exemplo do settings.py do projeto:
 <p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
 <p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
 
+Baixar esse <a href="https://github.com/willemallan/django-fab-server/blob/master/projeto/fabfile.py">fabfile</a> para o projeto.
+
 
 Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
 
