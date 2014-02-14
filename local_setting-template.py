@@ -4,6 +4,6 @@ host = '192.168.0.1'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
-bitbucket_user = 'willemarf'
-bitbucket_project_default = 'd16padrao'
+bitbucket_repository = 'git@bitbucket.org:__USER__/__PADRAO__.git'
+bitbucket_user = '__USER__'
 folder_project_local = '~/projetos_python/'

@@ -391,8 +391,8 @@ def newproject():
 
     conta = raw_input('Digite o nome do projeto: ')
 
-    local('echo "clonando projeto %s"' % bitbucket_project_default)
-    local('git clone git@github.com:{0}/{1}.git {2}{3}'.format(bitbucket_user, bitbucket_project_default, folder_project_local, conta))
+    local('echo "clonando projeto %s"' % bitbucket_repository)
+    local('git clone {0} {1}{2}'.format(bitbucket_repository, folder_project_local, conta))
     local('cd {0}{1}'.format(folder_project_local, conta))
     local('mkvirtualenv {0}'.format(conta))
     local('setvirtualenvproject')
@@ -400,7 +400,7 @@ def newproject():
     local('rm -rf {0}{1}/.git'.format(folder_project_local, conta))
     local('rm -rf README.md')
     local('git init')
-    local('git remote add origin ssh://git@bitbucket.org/{0}/{1}.git'.format(bitbucket_user, conta))
+    local('git remote add origin git@bitbucket.org:{0}/{1}.git'.format(bitbucket_user, conta))
 
 # configura uma maquina local ubuntu
 def newdev():
