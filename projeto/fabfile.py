@@ -11,21 +11,21 @@ env.project_path = '/home/%s/project/' % username
 env.env_path = '/home/%s/env/bin/activate' % username
 env.hosts = [prod_server]
 
-# def config(): # initial deploy
-#     log('COPIAR CÓDIGO GERADO E COLOCAR NAS CHAVES DE IMPLANTAÇÃO DO PROJETO')
-#     run('ssh-keygen && cat ~/.ssh/id_rsa.pub')
-#     resp = raw_input('Após copiar a chave e adicionar as chaves no repositório, clique ENTER para continuar!!!')
-#     run('git clone %s project' % repositorio)
-#     with cd(env.project_path):
-#         run('easy_install -U distribute')
-#         run('pip install -r requirements.txt')
-#         remote_pull()
-#         run('python manage.py syncdb')
-#         run('python manage.py migrate')
-#         run('python manage.py collectstatic --noinput')
-#     log('RODAR OS DOIS COMANDOS NO SERVIDOR PARA TESTAR SE TEM ALGUM ERRO NO PROJETO! \npython manage.py runserver 8060 \npython manage.py run_gunicorn')
-#     login()
-    # log('Executar agora o comando: fab deploy servidor2 restart')
+def config(): # initial deploy
+    log('COPIAR CÓDIGO GERADO E COLOCAR NAS CHAVES DE IMPLANTAÇÃO DO PROJETO')
+    run('ssh-keygen && cat ~/.ssh/id_rsa.pub')
+    resp = raw_input('Após copiar a chave e adicionar as chaves no repositório, clique ENTER para continuar!!!')
+    run('git clone %s project' % repositorio)
+    with prefix('source {0}'.format(env.project_path)):
+        run('easy_install -U distribute')
+        run('pip install -r requirements.txt')
+        remote_pull()
+        run('python manage.py syncdb')
+        run('python manage.py migrate')
+        run('python manage.py collectstatic --noinput')
+    log('RODAR OS DOIS COMANDOS NO SERVIDOR PARA TESTAR SE TEM ALGUM ERRO NO PROJETO! \npython manage.py runserver 8060 \npython manage.py run_gunicorn')
+    login()
+    log('Executar agora o comando: fab deploy')
 
 def deploy():
     """faz o deploy da aplicação no servidor"""
