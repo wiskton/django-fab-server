@@ -70,16 +70,7 @@ exemplo do settings.py do projeto:
 
 Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
 
-    workon projeto
-    fab login
-    ssh-keygen && cat ~/.ssh/id_rsa.pub
-    git clone git@bitbucket.org:__CONTA_BITBUCKET__/__PROJETO__.git project
-    . env/bin/activate
-    easy_install -U distribute
-    pip install -r project/requirements.txt
-    python project/manage.py syncdb
-    python project/manage.py migrate
-    python project/manage.py collectstatic --noinput
+    fab config (Instala o distribute e os requirements.txt no env. Executa o syncdb, migrate e collectstatic)
 
 
 Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
