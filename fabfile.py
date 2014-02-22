@@ -40,6 +40,9 @@ env.conta = ''
 # dominio da conta
 env.dominio = ''
 
+# linguagem 1-python 2-php
+env.linguagem = ''
+
 # senha do root do mysql
 env.mysql_password = ''
 
@@ -60,6 +63,8 @@ env.key_filename = chave
 # --------------------------------------------------------
 
 def newserver():
+    # gera uma chave no servidor para utilizar o comando upload_public_key
+    run('ssh-keygen')
 
     """Configurar e instalar todos pacotes necessários para servidor"""
     log('Configurar e instalar todos pacotes necessários para servidor')
@@ -81,12 +86,18 @@ def newserver():
     upgrade_server()
 
     # nginx
-    sudo('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
+    try:
+        sudo('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
+    except:
+        pass
     write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
 
     # supervisor
-    sudo('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
+    try:
+        sudo('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
+    except:
+        pass
     write_file('supervisord_server.conf', '/etc/supervisor/supervisord.conf')
     supervisor_restart()
 
@@ -108,8 +119,10 @@ def novaconta():
         env.conta = raw_input('Digite o nome da conta: ')
     if not env.dominio:
         env.dominio = raw_input('Digite o domínio do site: ')
-    if not env.porta:
-        env.porta = raw_input('Digite o número da porta: ')
+    if not env.linguagem:
+        env.linguagem = raw_input('Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: ')
+        if not env.porta and env.linguagem == 1:
+            env.porta = raw_input('Digite o número da porta: ')
     if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
@@ -117,14 +130,18 @@ def novaconta():
     user_senha = gera_senha(12)
     adduser(env.conta, user_senha)
 
-    sudo('mkdir /home/{0}/logs'.format(env.conta))
-    sudo('touch /home/{0}/logs/access.log'.format(env.conta))
-    sudo('touch /home/{0}/logs/error.log'.format(env.conta))
-    sudo('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
+    run('mkdir /home/{0}/logs'.format(env.conta))
+    run('touch /home/{0}/logs/access.log'.format(env.conta))
+    run('touch /home/{0}/logs/error.log'.format(env.conta))
 
-    write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
-    write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
-    write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
+    if env.linguagem == 1:
+        run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
+        write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
+        write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
+        write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
+    else:
+        write_file('nginx_php.conf', '/home/{0}/nginx.conf'.format(env.conta))
+        run('mkdir /home/{0}/public_html/'.format(env.conta))
 
     # cria banco e usuario no banco
     banco_senha = gera_senha(12)
@@ -276,9 +293,9 @@ def outros_server():
     log('Instalando nginx e supervisor')
     sudo('apt-get -y install nginx supervisor')
     sudo('apt-get -y install mercurial rubygems')
+    sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
     # sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
-
 
 def login():
     """Acessa o servidor"""
