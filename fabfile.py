@@ -93,6 +93,14 @@ def newserver():
     write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
 
+    # proftpd
+    try:
+        sudo('mv /etc/proftpd/proftpd.conf /etc/proftpd/proftpd_backup.conf')
+    except:
+        pass
+    write_file('proftpd.conf', '/etc/proftpd/proftpd.conf')
+    proftpd_restart()
+
     # supervisor
     try:
         sudo('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
@@ -118,7 +126,7 @@ def novaconta():
     if not env.conta:
         env.conta = raw_input('Digite o nome da conta: ')
     if not env.dominio:
-        env.dominio = raw_input('Digite o domínio do site: ')
+        env.dominio = raw_input('Digite o domínio do site (sem www): ')
     if not env.linguagem:
         env.linguagem = raw_input('Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: ')
         if not env.porta and env.linguagem == 1:
@@ -294,7 +302,7 @@ def outros_server():
     sudo('apt-get -y install nginx supervisor')
     sudo('apt-get -y install mercurial rubygems')
     sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
-    # sudo('apt-get -y install proftpd') # standalone nao perguntar
+    sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
 
 def login():
@@ -327,6 +335,11 @@ def restart():
 def reboot():
     """Reinicia o servidor"""
     sudo('reboot')
+
+def proftpd_restart():
+    """restart proftpd"""
+    log('restart proftpd')
+    sudo('/etc/init.d/proftpd restart')
 
 # SUPERVISOR APP
 def start_server():
