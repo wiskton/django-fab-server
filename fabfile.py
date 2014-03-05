@@ -20,17 +20,6 @@ bitbucket_user = 'conta'
 bitbucket_project_default = 'projeto_padrao'
 folder_project_local = '~/projetos/'
 
-# copiar as variaveis de cima e jogar no local_settings para substituir
-try:
-    from local_settings import *
-except ImportError:
-    pass
-
-# --------------------------------------------------------
-
-prod_server = '{0}@{1}'.format(user, host)
-project_path = '/home/'
-
 # diretório do conf.d do supervisor
 env.supervisor_conf_d_path = '/etc/supervisor/conf.d'
 
@@ -56,6 +45,18 @@ env.hosts = [prod_server]
 
 # endereco da chave
 env.key_filename = chave
+
+
+# copiar as variaveis de cima e jogar no local_settings para substituir
+try:
+    from local_settings import *
+except ImportError:
+    pass
+
+# --------------------------------------------------------
+
+prod_server = '{0}@{1}'.format(user, host)
+project_path = '/home/'
 
 
 # --------------------------------------------------------
@@ -129,7 +130,7 @@ def novaconta():
         env.dominio = raw_input('Digite o domínio do site (sem www): ')
     if not env.linguagem:
         env.linguagem = raw_input('Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: ')
-        if not env.porta and env.linguagem == 1:
+        if not env.porta and int(env.linguagem) == 1:
             env.porta = raw_input('Digite o número da porta: ')
     if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
@@ -142,7 +143,7 @@ def novaconta():
     run('touch /home/{0}/logs/access.log'.format(env.conta))
     run('touch /home/{0}/logs/error.log'.format(env.conta))
 
-    if env.linguagem == 1:
+    if int(env.linguagem) == 1:
         run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
         write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
         write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
