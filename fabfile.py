@@ -41,8 +41,6 @@ env.porta = ''
 # diretório do sites-enable do nginx
 env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 
-env.hosts = [prod_server]
-
 # endereco da chave
 env.key_filename = chave
 
@@ -58,6 +56,7 @@ except ImportError:
 prod_server = '{0}@{1}'.format(user, host)
 project_path = '/home/'
 
+env.hosts = [prod_server]
 
 # --------------------------------------------------------
 # SERVIDOR
