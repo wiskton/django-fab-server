@@ -86,26 +86,14 @@ def newserver():
     upgrade_server()
 
     # nginx
-    try:
-        sudo('mv /etc/nginx/nginx.conf /etc/nginx/nginx_backup.conf')
-    except:
-        pass
     write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
 
     # proftpd
-    try:
-        sudo('mv /etc/proftpd/proftpd.conf /etc/proftpd/proftpd_backup.conf')
-    except:
-        pass
     write_file('proftpd.conf', '/etc/proftpd/proftpd.conf')
     proftpd_restart()
 
     # supervisor
-    try:
-        sudo('mv /etc/supervisor/supervisord.conf /etc/supervisor/supervisord_backup.conf')
-    except:
-        pass
     write_file('supervisord_server.conf', '/etc/supervisor/supervisord.conf')
     supervisor_restart()
 
@@ -174,7 +162,7 @@ def write_file(filename, destination):
             context=env,
             use_jinja=True,
             use_sudo=True,
-            backup=False
+            backup=True
         )
 
 # deleta uma conta no servidor
@@ -193,13 +181,14 @@ def adduser(conta=None, user_senha=None):
 
     if not user_senha:
         user_senha = gera_senha(12)
-    print 'senha usuário: {0}'.format(user_senha)
 
     if not conta:
         conta = raw_input('Digite o nome do usuário: ')
 
     log('Criando usuário {0}'.format(conta))
-    sudo('adduser {0}'.format(conta))
+    sudo('useradd -p $(perl -e \'print crypt($ARGV[0], "password")\' {0}) {1}'.format(user_senha, conta))
+    print '\nSenha usuário: {0}'.format(user_senha)
+    print '\n================================================================================'
 
 
 # MYSQL - cria usuario e banco de dados
