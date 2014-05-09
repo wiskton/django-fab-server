@@ -63,11 +63,12 @@ env.hosts = [prod_server]
 # --------------------------------------------------------
 
 def newserver():
+    """Configurar e instalar todos pacotes necessários para servidor"""
+    log('Configurar e instalar todos pacotes necessários para servidor')
+    
     # gera uma chave no servidor para utilizar o comando upload_public_key
     run('ssh-keygen')
 
-    """Configurar e instalar todos pacotes necessários para servidor"""
-    log('Configurar e instalar todos pacotes necessários para servidor')
 
     update_server()
 
@@ -79,7 +80,7 @@ def newserver():
     python_server()
     mysql_server()
     git_server()
-    outros_server()
+    others_server()
 
     # atualizando
     update_server()
@@ -105,8 +106,14 @@ def newserver():
     log('Reiniciando a máquina')
     reboot()
 
+def listaccount():
+    """Lista usuários do servidor"""
+    log('Lista usuários do servidor')
+    with cd('/home/'):
+        run('ls')
+
 # cria uma conta no servidor
-def novaconta():
+def newaccount():
     """Criar uma nova conta do usuário no servidor"""
     log('Criar uma nova conta do usuário no servidor')
 
@@ -123,24 +130,24 @@ def novaconta():
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
     # cria usuario no linux
-    user_senha = gera_senha(12)
+    user_senha = create_password(12)
     adduser(env.conta, user_senha)
 
-    run('mkdir /home/{0}/logs'.format(env.conta))
-    run('touch /home/{0}/logs/access.log'.format(env.conta))
-    run('touch /home/{0}/logs/error.log'.format(env.conta))
+    sudo('mkdir /home/{0}/logs'.format(env.conta))
+    sudo('touch /home/{0}/logs/access.log'.format(env.conta))
+    sudo('touch /home/{0}/logs/error.log'.format(env.conta))
 
     if int(env.linguagem) == 1:
-        run('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
+        sudo('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
         write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
         write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
         write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
     else:
         write_file('nginx_php.conf', '/home/{0}/nginx.conf'.format(env.conta))
-        run('mkdir /home/{0}/public_html/'.format(env.conta))
+        sudo('mkdir /home/{0}/public_html/'.format(env.conta))
 
     # cria banco e usuario no banco
-    banco_senha = gera_senha(12)
+    banco_senha = create_password(12)
     newbase(env.conta, banco_senha)
 
     # da permissao para o usuario no diretorio
@@ -166,7 +173,7 @@ def write_file(filename, destination):
         )
 
 # deleta uma conta no servidor
-def delconta():
+def delaccount():
     """Deletar conta no servidor"""
     conta = raw_input('Digite o nome da conta: ')
     env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
@@ -180,13 +187,13 @@ def adduser(conta=None, user_senha=None):
     """Criar um usuário no servidor"""
 
     if not user_senha:
-        user_senha = gera_senha(12)
+        user_senha = create_password(12)
 
     if not conta:
         conta = raw_input('Digite o nome do usuário: ')
 
     log('Criando usuário {0}'.format(conta))
-    sudo('adduser -p $(perl -e \'print crypt($ARGV[0], "password")\' {0}) {1}'.format(user_senha, conta))
+    sudo('useradd -m -p pass=$(perl -e \'print crypt($ARGV[0], "password")\' \'{0}\') {1}'.format(user_senha, conta))
     print '\nSenha usuário: {0}'.format(user_senha)
     print '\n================================================================================'
 
@@ -196,7 +203,7 @@ def newbase(conta=None, banco_senha=None):
     """Criar banco de dados e usuário no servidor"""
 
     if not banco_senha:
-        banco_senha = gera_senha(12)
+        banco_senha = create_password(12)
     print 'Senha gerada para o banco: {0}'.format(banco_senha)
 
     if not conta:
@@ -285,7 +292,7 @@ def git_server():
     log('Instalando git')
     sudo('apt-get -y install git')
 
-def outros_server():
+def others_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     sudo('apt-get -y install nginx supervisor')
@@ -398,6 +405,24 @@ def nginx_reload():
     sudo('/etc/init.d/nginx reload')
 
 
+def mysql_restart():
+    """Restart mysql no servidor"""
+    log('restart mysql')
+    sudo('/etc/init.d/mysql restart')
+
+
+def mysql_start():
+    """start mysql no servidor"""
+    log('start mysql')
+    sudo('/etc/init.d/mysql start')
+
+
+def mysql_stop():
+    """stop mysql no servidor"""
+    log('stop mysql')
+    sudo('/etc/init.d/mysql stop')
+
+
 # --------------------------------------------------------
 # LOCAL
 # --------------------------------------------------------
@@ -487,7 +512,7 @@ def git_local():
 # --------------------------------------------------------
 
 # gera senha
-def gera_senha(tamanho=12):
+def create_password(tamanho=12):
     """Gera uma senha - parametro tamanho"""
     from random import choice
     caracters = '0123456789abcdefghijlmnopqrstuwvxzkABCDEFGHIJLMNOPQRSTUWVXZK_#'

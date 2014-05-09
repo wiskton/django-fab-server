@@ -61,28 +61,34 @@ Comandos disponíveis:
 
     adduser             Criar um usuário no servidor
     build_local         Instalar build-essential
-    build_server        Instalar build-essential e outros pacotes importante...
-    delconta            Deletar conta no servidor
+    build_server        Instalar build-essential e outros pacotes importantes ...
+    create_password     Gera uma senha - parametro tamanho
+    delaccount          Deletar conta no servidor
     dropbase            Deletar banco de dados no servidor
-    gera_senha          Gera uma senha - parametro tamanho
     git_local           Instalando git
     git_server          Instalar git no servidor
-    log                 Imprimi um texto com formatação
+    listaccount         Lista usuários do servidor
+    log
     login               Acessa o servidor
     mysql_local         Instalando MySQL
+    mysql_restart       Restart mysql no servidor
     mysql_server        Instalar MySQL no servidor
+    mysql_start         start mysql no servidor
+    mysql_stop          stop mysql no servidor
+    newaccount          Criar uma nova conta do usuário no servidor
     newbase             Criar banco de dados e usuário no servidor
-    newdev              Configura uma maquina local Ubuntu para trabalhar py...
+    newdev              Configura uma maquina local Ubuntu para trabalhar pyth...
     newproject          Criar novo projeto local
-    newserver           Configurar e instalar todos pacotes necessários par...
+    newserver           Configurar e instalar todos pacotes necessários para ...
     nginx_reload        Reload nginx no servidor
     nginx_restart       Restart nginx no servidor
     nginx_start         Start nginx no servidor
     nginx_stop          Stop nginx no servidor
-    novaconta           Criar uma nova conta do usuário no servidor
-    outros_server       Instalar nginx e supervisor
+    others_server       Instalar nginx e supervisor
+    proftpd_restart     restart proftpd
     python_local        Instalando todos pacotes necessários
-    python_server       Instalar todos pacotes necessários do python no ser...
+    python_server       Instalar todos pacotes necessários do python no servi...
+    reboot              Reinicia o servidor
     restart             Reiniciar servicos no servidor
     restart_server      Restart aplicação no servidor
     start_server        Start aplicação no servidor
@@ -96,4 +102,4 @@ Comandos disponíveis:
     upgrade_server      Atualizar programas no servidor
     upload_public_key   Faz o upload da chave ssh para o servidor
     userdel             Deletar usuário no servidor
-    reboot              Reiniciar o servidor
+    write_file
