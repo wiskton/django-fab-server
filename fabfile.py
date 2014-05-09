@@ -319,7 +319,11 @@ def others_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     sudo('apt-get -y install nginx supervisor')
-    sudo('apt-get -y install mercurial ruby-gems')
+    sudo('apt-get -y install mercurial')
+    try:
+        sudo('apt-get -y install ruby rubygems')
+    except:
+        log('PACOTE DO RUBY GEMS FOI REMOVIDO DO PACKAGES DO UBUNTU')
     sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
