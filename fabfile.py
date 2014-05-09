@@ -65,10 +65,9 @@ env.hosts = [prod_server]
 def newserver():
     """Configurar e instalar todos pacotes necessários para servidor"""
     log('Configurar e instalar todos pacotes necessários para servidor')
-    
+
     # gera uma chave no servidor para utilizar o comando upload_public_key
     run('ssh-keygen')
-
 
     update_server()
 
@@ -103,6 +102,8 @@ def newserver():
     sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libjpeg.so /usr/lib/")
     sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libz.so /usr/lib/")
 
+    log('Anote a senha do banco de dados: {0}'.format(db_password))
+
     log('Reiniciando a máquina')
     reboot()
 
@@ -111,6 +112,16 @@ def listaccount():
     log('Lista usuários do servidor')
     with cd('/home/'):
         run('ls')
+
+def aptget(lib=None):
+    """Executa apt-get install no servidor ex: fab aptget:lib=python-pip"""
+    log('Executa apt-get install no servidor')
+    if not lib:
+        lib = raw_input('Digite o pacote para instalar: sudo apt-get install ')
+    
+    if lib:
+        sudo('apt-get install {0}'.format(lib))
+    # sudo('aptget {0}'.format(display))
 
 # cria uma conta no servidor
 def newaccount():
@@ -158,7 +169,7 @@ def newaccount():
 
     # log para salvar no docs
     log('Anotar dados da conta')
-    print '{0} \nUSUÁRIO senha: {1} \nBANCO senha: {2}'.format(env.conta, user_senha, banco_senha)
+    print '{0} \n\n--ssh\nuser: {0}\npw: {1} \n\n--db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha)
 
 def write_file(filename, destination):
 
@@ -284,7 +295,16 @@ def python_server():
 def mysql_server():
     """Instalar MySQL no servidor"""
     log('Instalando MySQL')
-    sudo('apt-get -y install mysql-server libmysqlclient-dev') # nao perguntar senha do mysql pedir senha antes
+
+    db_password = create_password(12)
+
+    sudo('echo mysql-server-5.0 mysql-server/root_password password {0} | debconf-set-selections'.format(db_password))
+    sudo('echo mysql-server-5.0 mysql-server/root_password_again password {0} | debconf-set-selections'.format(db_password))
+    sudo('apt-get -q -y install mysql-server')
+    sudo('apt-get -y install libmysqlclient-dev') # nao perguntar senha do mysql pedir senha antes
+
+    log('BANCO DE DADOS - PASSWORD')
+    print 'password: '.format(db_password)
 
 
 def git_server():
@@ -296,7 +316,7 @@ def others_server():
     """Instalar nginx e supervisor"""
     log('Instalando nginx e supervisor')
     sudo('apt-get -y install nginx supervisor')
-    sudo('apt-get -y install mercurial rubygems')
+    sudo('apt-get -y install mercurial ruby-gems')
     sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')

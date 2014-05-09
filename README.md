@@ -60,6 +60,7 @@ Listando os comandos:
 Comandos disponíveis:
 
     adduser             Criar um usuário no servidor
+    aptget              Executa apt-get install no servidor ex: fab aptget:lib...
     build_local         Instalar build-essential
     build_server        Instalar build-essential e outros pacotes importantes ...
     create_password     Gera uma senha - parametro tamanho
