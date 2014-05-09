@@ -85,6 +85,9 @@ def newserver():
     update_server()
     upgrade_server()
 
+    # mysql
+    mysql_restart
+
     # nginx
     write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
@@ -169,7 +172,7 @@ def newaccount():
 
     # log para salvar no docs
     log('Anotar dados da conta')
-    print '{0} \n\n--ssh\nuser: {0}\npw: {1} \n\n--db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha)
+    print 'conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha)
 
 def write_file(filename, destination):
 
