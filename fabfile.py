@@ -207,7 +207,8 @@ def adduser(conta=None, user_senha=None):
         conta = raw_input('Digite o nome do usuário: ')
 
     log('Criando usuário {0}'.format(conta))
-    sudo('useradd -m -p pass=$(perl -e \'print crypt($ARGV[0], "password")\' \'{0}\') {1}'.format(user_senha, conta))
+    sudo('adduser {0}'.format(conta))
+    # sudo('useradd -m -p pass=$(perl -e \'print crypt($ARGV[0], "password")\' \'{0}\') {1}'.format(user_senha, conta))
     print '\nSenha usuário: {0}'.format(user_senha)
     print '\n================================================================================'
 
