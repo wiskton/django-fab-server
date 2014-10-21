@@ -3,6 +3,8 @@ import os
 
 from fabric.api import *
 from fabric.contrib.files import upload_template
+from fabric.contrib.console import confirm
+from fabric.colors import green, red, yellow, white
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -12,7 +14,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = 'root'
-host = '192.168.0.1'
+host = '107.170.94.37'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
@@ -43,6 +45,10 @@ env.nginx_sites_enable_path = '/etc/nginx/sites-enabled'
 
 # endereco da chave
 env.key_filename = chave
+
+# verificando django1.7 para supervisor
+env.django17 = False
+env.pasta_settings = ''
 
 
 # copiar as variaveis de cima e jogar no local_settings para substituir
@@ -139,7 +145,13 @@ def newaccount():
     if not env.linguagem:
         env.linguagem = raw_input('Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: ')
         if not env.porta and int(env.linguagem) == 1:
-            env.porta = raw_input('Digite o número da porta: ')
+            log( yellow('ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS') + '\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.' )
+            sudo("netstat -tulpn")
+            env.porta = raw_input('Digite o número de uma porta que não está listada acima: ')
+            if confirm( "Este projeto está em django 1.7?" ):
+                env.django17 = True
+                env.pasta_settings = raw_input( 'Digite o nome da pasta onde está o settings. ( Ex: app, config, [nome-do-projeto] ):' )
+                log(green("ATENÇÃO!! PARA DJANGO 1.7 A VERSÃO DO GUNICORN NO ENV DEVE SER 19++"))
     if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
@@ -154,7 +166,10 @@ def newaccount():
     if int(env.linguagem) == 1:
         sudo('virtualenv /home/{0}/env --no-site-packages'.format(env.conta))
         write_file('nginx.conf', '/home/{0}/nginx.conf'.format(env.conta))
-        write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
+        if env.django17:
+            write_file('supervisor_django17.ini', '/home/{0}/supervisor.ini'.format(env.conta))
+        else:
+            write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
         write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
     else:
         write_file('nginx_php.conf', '/home/{0}/nginx.conf'.format(env.conta))
@@ -202,6 +217,7 @@ def adduser(conta=None, user_senha=None):
 
     if not user_senha:
         user_senha = create_password(12)
+    print 'senha usuário: {0}'.format(user_senha)
 
     if not conta:
         conta = raw_input('Digite o nome do usuário: ')
@@ -209,7 +225,6 @@ def adduser(conta=None, user_senha=None):
     log('Criando usuário {0}'.format(conta))
     sudo('adduser {0}'.format(conta))
     # sudo('useradd -m -p pass=$(perl -e \'print crypt($ARGV[0], "password")\' \'{0}\') {1}'.format(user_senha, conta))
-    print '\nSenha usuário: {0}'.format(user_senha)
     print '\n================================================================================'
 
 
