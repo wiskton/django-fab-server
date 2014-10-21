@@ -569,7 +569,7 @@ def create_password(tamanho=12):
     return senha
 
 
-def log(message, color):
+def log(message, color=white):
     print color("""
 ================================================================================
 %s
