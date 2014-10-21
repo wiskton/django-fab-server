@@ -64,7 +64,7 @@ env.hosts = [prod_server]
 
 def newserver():
     """Configurar e instalar todos pacotes necessários para servidor"""
-    log('Configurar e instalar todos pacotes necessários para servidor')
+    log('Configurar e instalar todos pacotes necessários para servidor', yellow)
 
     # gera uma chave no servidor para utilizar o comando upload_public_key
     run('ssh-keygen')
@@ -89,14 +89,17 @@ def newserver():
     mysql_restart
 
     # nginx
+    print yellow('nginx - Alterando arquivo /etc/nginx/nginx.conf')
     write_file('nginx_server.conf', '/etc/nginx/nginx.conf')
     nginx_restart()
 
     # proftpd
+    print yellow('proftpd - Alterando arquivo /etc/proftpd/proftpd.conf')
     write_file('proftpd.conf', '/etc/proftpd/proftpd.conf')
     proftpd_restart()
 
     # supervisor
+    print yellow('supervisor - Alterando arquivo /etc/supervisor/supervisord.conf')
     write_file('supervisord_server.conf', '/etc/supervisor/supervisord.conf')
     supervisor_restart()
 
@@ -105,20 +108,20 @@ def newserver():
     sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libjpeg.so /usr/lib/")
     sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libz.so /usr/lib/")
 
-    log('Anote a senha do banco de dados: {0}'.format(db_password))
+    log('Anote a senha do banco de dados: {0}'.format(db_password), green)
 
-    log('Reiniciando a máquina')
+    log('Reiniciando a máquina', yellow)
     reboot()
 
 def listaccount():
     """Lista usuários do servidor"""
-    log('Lista usuários do servidor')
+    log('Lista usuários do servidor', yellow)
     with cd('/home/'):
         run('ls')
 
 def aptget(lib=None):
     """Executa apt-get install no servidor ex: fab aptget:lib=python-pip"""
-    log('Executa apt-get install no servidor')
+    log('Executa apt-get install no servidor', yellow)
     if not lib:
         lib = raw_input('Digite o pacote para instalar: sudo apt-get install ')
     
@@ -129,7 +132,7 @@ def aptget(lib=None):
 # cria uma conta no servidor
 def newaccount():
     """Criar uma nova conta do usuário no servidor"""
-    log('Criar uma nova conta do usuário no servidor')
+    log('Criar uma nova conta do usuário no servidor', yellow)
 
     # criando usuario
     if not env.conta:
@@ -171,8 +174,8 @@ def newaccount():
     supervisor_restart()
 
     # log para salvar no docs
-    log('Anotar dados da conta')
-    print 'conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha)
+    log('Anotar dados da conta', green)
+    print green('conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha))
 
 def write_file(filename, destination):
 
@@ -191,7 +194,7 @@ def delaccount():
     """Deletar conta no servidor"""
     conta = raw_input('Digite o nome da conta: ')
     env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
-    log('Deletando conta {0}'.format(conta))
+    log('Deletando conta {0}'.format(conta), red)
     userdel(conta)
     dropbase(conta)
 
@@ -206,7 +209,7 @@ def adduser(conta=None, user_senha=None):
     if not conta:
         conta = raw_input('Digite o nome do usuário: ')
 
-    log('Criando usuário {0}'.format(conta))
+    log('Criando usuário {0}'.format(conta), green)
     sudo('adduser {0}'.format(conta))
     # sudo('useradd -m -p pass=$(perl -e \'print crypt($ARGV[0], "password")\' \'{0}\') {1}'.format(user_senha, conta))
     print '\nSenha usuário: {0}'.format(user_senha)
@@ -223,7 +226,7 @@ def newbase(conta=None, banco_senha=None):
 
     if not conta:
         conta = raw_input('Digite o nome do banco: ')
-    log('NEW DATABASE {0}'.format(conta))
+    log('NEW DATABASE {0}'.format(conta), green)
 
     # cria acesso para o banco local
     sudo("echo CREATE DATABASE {0} | mysql -u root -p{1}".format(conta, env.mysql_password))
@@ -252,26 +255,26 @@ def userdel(conta=None):
     """Deletar usuário no servidor"""
     if not conta:
         conta = raw_input('Digite o nome do usuario: ')
-    log('Deletando usuário {0}'.format(conta))
+    log('Deletando usuário {0}'.format(conta), red)
     sudo('userdel -r {0}'.format(conta))
 
 
 # update no servidor
 def update_server():
     """Atualizando pacotes no servidor"""
-    log('Atualizando pacotes')
+    log('Atualizando pacotes', yellow)
     sudo('apt-get -y update')
 
 # upgrade no servidor
 def upgrade_server():
     """Atualizar programas no servidor"""
-    log('Atualizando programas')
+    log('Atualizando programas', yellow)
     sudo('apt-get -y upgrade')
 
 
 def build_server():
     """Instalar build-essential e outros pacotes importantes no servidor"""
-    log('Instalando build-essential e outros pacotes')
+    log('Instalando build-essential e outros pacotes', yellow)
     sudo('apt-get -y install build-essential automake')
     sudo('apt-get -y install libxml2-dev libxslt-dev')
     sudo('apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
@@ -290,7 +293,7 @@ def build_server():
 
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
-    log('Instalando todos pacotes necessários')
+    log('Instalando todos pacotes necessários', yellow)
     sudo('sudo apt-get -y install python-imaging')
     sudo('apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     # sudo('easy_install -U distribute')
@@ -298,7 +301,7 @@ def python_server():
 
 def mysql_server():
     """Instalar MySQL no servidor"""
-    log('Instalando MySQL')
+    log('Instalando MySQL', yellow)
 
     db_password = create_password(12)
 
@@ -307,24 +310,24 @@ def mysql_server():
     sudo('apt-get -q -y install mysql-server')
     sudo('apt-get -y install libmysqlclient-dev') # nao perguntar senha do mysql pedir senha antes
 
-    log('BANCO DE DADOS - PASSWORD')
-    print 'password: '.format(db_password)
+    log('BANCO DE DADOS - PASSWORD', green)
+    print green('password: '.format(db_password))
 
 
 def git_server():
     """Instalar git no servidor"""
-    log('Instalando git')
+    log('Instalando git', yellow)
     sudo('apt-get -y install git')
 
 def others_server():
     """Instalar nginx e supervisor"""
-    log('Instalando nginx e supervisor')
+    log('Instalando nginx e supervisor', yellow)
     sudo('apt-get -y install nginx supervisor')
     sudo('apt-get -y install mercurial')
     try:
         sudo('apt-get -y install ruby rubygems')
     except:
-        log('PACOTE DO RUBY GEMS FOI REMOVIDO DO PACKAGES DO UBUNTU')
+        log('PACOTE DO RUBY GEMS FOI REMOVIDO DO PACKAGES DO UBUNTU', red)
     sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
     sudo('gem install compass')
@@ -338,7 +341,7 @@ def login():
 
 def upload_public_key():
     """Faz o upload da chave ssh para o servidor"""
-    log('Adicionando chave publica no servidor')
+    log('Adicionando chave publica no servidor', green)
     ssh_file = '~/.ssh/id_rsa.pub'
     target_path = '~/.ssh/uploaded_key.pub'
     put(ssh_file, target_path)
@@ -348,7 +351,7 @@ def upload_public_key():
 # RESTART
 def restart():
     """Reiniciar servicos no servidor"""
-    log('reiniciando servicos')
+    log('reiniciando servicos', yellow)
     nginx_stop()
     nginx_start()
     nginx_restart()
@@ -358,51 +361,52 @@ def restart():
 
 def reboot():
     """Reinicia o servidor"""
+    log('reiniciando servidor', yellow)
     sudo('reboot')
 
 def proftpd_restart():
     """restart proftpd"""
-    log('restart proftpd')
+    log('restart proftpd', yellow)
     sudo('/etc/init.d/proftpd restart')
 
 # SUPERVISOR APP
 def start_server():
     """Start aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
-    log('inicia aplicação')
+    log('inicia aplicação', green)
     sudo('supervisorctl start %s' % conta)
 
 
 def stop_server():
     """Stop aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
-    log('para aplicação')
+    log('para aplicação', red)
     sudo('supervisorctl stop %s' % conta)
 
 
 def restart_server():
     """Restart aplicação no servidor"""
     conta = raw_input('Digite o nome da app: ')
-    log('reinicia aplicação')
+    log('reinicia aplicação', yellow)
     sudo('supervisorctl restart %s' % conta)
 
 
 # SUPERVISOR
 def supervisor_start():
     """Start supervisor no servidor"""
-    log('start supervisor')
+    log('start supervisor', green)
     sudo('/etc/init.d/supervisor start')
 
 
 def supervisor_stop():
     """Stop supervisor no servidor"""
-    log('stop supervisor')
+    log('stop supervisor', red)
     sudo('/etc/init.d/supervisor stop')
 
 
 def supervisor_restart():
     """Restart supervisor no servidor"""
-    log('restart supervisor')
+    log('restart supervisor', yellow)
     sudo('/etc/init.d/supervisor stop')
     sudo('/etc/init.d/supervisor start')
     # sudo('/etc/init.d/supervisor restart')
@@ -411,43 +415,43 @@ def supervisor_restart():
 # NGINX
 def nginx_start():
     """Start nginx no servidor"""
-    log('start nginx')
+    log('start nginx', green)
     sudo('/etc/init.d/nginx start')
 
 
 def nginx_stop():
     """Stop nginx no servidor"""
-    log('stop nginx')
+    log('stop nginx', red)
     sudo('/etc/init.d/nginx stop')
 
 
 def nginx_restart():
     """Restart nginx no servidor"""
-    log('restart nginx')
+    log('restart nginx', yellow)
     sudo('/etc/init.d/nginx restart')
 
 
 def nginx_reload():
     """Reload nginx no servidor"""
-    log('reload nginx')
+    log('reload nginx', yellow)
     sudo('/etc/init.d/nginx reload')
 
 
 def mysql_restart():
     """Restart mysql no servidor"""
-    log('restart mysql')
+    log('restart mysql', yellow)
     sudo('/etc/init.d/mysql restart')
 
 
 def mysql_start():
     """start mysql no servidor"""
-    log('start mysql')
+    log('start mysql', green)
     sudo('/etc/init.d/mysql start')
 
 
 def mysql_stop():
     """stop mysql no servidor"""
-    log('stop mysql')
+    log('stop mysql', red)
     sudo('/etc/init.d/mysql stop')
 
 
@@ -458,8 +462,8 @@ def mysql_stop():
 # cria projeto local
 def newproject():
     """ Criar novo projeto local """
-    log('Criando novo projeto')
-    log('Cria a conta no bitbucket com o nome do projeto vázio que o script se encarregará do resto')
+    log('Criando novo projeto', yellow)
+    log('Cria a conta no bitbucket com o nome do projeto vázio que o script se encarregará do resto', red)
 
     conta = raw_input('Digite o nome do projeto: ')
 
@@ -477,7 +481,7 @@ def newproject():
 # configura uma maquina local ubuntu
 def newdev():
     """Configura uma maquina local Ubuntu para trabalhar python/django"""
-    log('Configura uma computador Ubuntu para trabalhar python/django')
+    log('Configura uma computador Ubuntu para trabalhar python/django', yellow)
     update_local()
     upgrade_local()
 
@@ -494,19 +498,19 @@ def newdev():
 # update no local
 def update_local():
     """Atualizando pacotes"""
-    log('Atualizando pacotes')
+    log('Atualizando pacotes', yellow)
     local('sudo apt-get update')
 
 # upgrade no local
 def upgrade_local():
     """Atualizando programas"""
-    log('Atualizando programas')
+    log('Atualizando programas', yellow)
     local('sudo apt-get upgrade')
 
 
 def build_local():
     """Instalar build-essential"""
-    log('instalando build-essential gcc++')
+    log('instalando build-essential gcc++', yellow)
     local('sudo apt-get -y install build-essential automake')
     local('sudo apt-get -y install libxml2-dev libxslt-dev')
     local('sudo apt-get -y install libjpeg-dev libjpeg8-dev zlib1g-dev libfreetype6 libfreetype6-dev')
@@ -514,7 +518,7 @@ def build_local():
 
 def python_local():
     """Instalando todos pacotes necessários"""
-    log('Instalando todos pacotes necessários')
+    log('Instalando todos pacotes necessários', yellow)
     local('sudo apt-get -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv')
     local('sudo pip install -U distribute')
     local('sudo pip install virtualenvwrapper')
@@ -525,13 +529,13 @@ def python_local():
 
 def mysql_local():
     """Instalando MySQL"""
-    log('Instalando MySQL')
+    log('Instalando MySQL', yellow)
     local('sudo apt-get -y install mysql-server libmysqlclient-dev')
 
 
 def git_local():
     """Instalando git"""
-    log('Instalando git')
+    log('Instalando git', yellow)
     local('sudo apt-get -y install git')
 
 
@@ -550,9 +554,9 @@ def create_password(tamanho=12):
     return senha
 
 
-def log(message):
-    print """
+def log(message, color):
+    print color("""
 ================================================================================
 %s
 ================================================================================
-    """ % message
+    """) % message
