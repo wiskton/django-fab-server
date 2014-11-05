@@ -14,7 +14,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = 'root'
-host = '107.170.94.37'
+host = '162.243.133.73'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
@@ -148,13 +148,13 @@ def newaccount():
     if not env.linguagem:
         env.linguagem = raw_input('Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: ')
         if not env.porta and int(env.linguagem) == 1:
-            log( yellow('ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS') + '\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.' )
+            log( 'ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.', yellow )
             sudo("netstat -tulpn")
             env.porta = raw_input('Digite o número de uma porta que não está listada acima: ')
             if confirm( "Este projeto está em django 1.7?" ):
                 env.django17 = True
                 env.pasta_settings = raw_input( 'Digite o nome da pasta onde está o settings. ( Ex: app, config, [nome-do-projeto] ):' )
-                log(green("ATENÇÃO!! PARA DJANGO 1.7 A VERSÃO DO GUNICORN NO ENV DEVE SER 19++"))
+                log("ATENÇÃO!! PARA DJANGO 1.7 A VERSÃO DO GUNICORN NO ENV DEVE SER 19++", green)
     if not env.mysql_password:
         env.mysql_password = raw_input('Digite a senha do ROOT do MySQL: ')
 
