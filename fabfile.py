@@ -14,7 +14,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = 'root'
-host = '162.243.133.73'
+host = '104.236.7.210'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
@@ -50,6 +50,8 @@ env.key_filename = chave
 env.django17 = False
 env.pasta_settings = ''
 
+env.db_password = ''
+
 
 # copiar as variaveis de cima e jogar no local_settings para substituir
 try:
@@ -80,7 +82,7 @@ def newserver():
     update_server()
     upgrade_server()
 
-    # pacotes
+    # # pacotes
     build_server()
     python_server()
     mysql_server()
@@ -109,12 +111,7 @@ def newserver():
     write_file('supervisord_server.conf', '/etc/supervisor/supervisord.conf')
     supervisor_restart()
 
-    # funcionar thumbnail no ubuntu 64bits
-    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libfreetype.so /usr/lib/")
-    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libjpeg.so /usr/lib/")
-    sudo("ln -s /usr/lib/'uname -i'-linux-gnu/libz.so /usr/lib/")
-
-    log('Anote a senha do banco de dados: {0}'.format(db_password), green)
+    log('Anote a senha do banco de dados: {0}'.format(env.db_password), green)
 
     log('Reiniciando a máquina', yellow)
     reboot()
@@ -190,7 +187,7 @@ def newaccount():
 
     # log para salvar no docs
     log('Anotar dados da conta', green)
-    print green('conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- db\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha))
+    print green('conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- banco\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha))
 
 def write_file(filename, destination):
 
@@ -220,7 +217,7 @@ def adduser(conta=None, user_senha=None):
 
     if not user_senha:
         user_senha = create_password(12)
-    print 'senha usuário: {0}'.format(user_senha)
+    print 'sugestao de Unix password: {0}'.format(user_senha)
 
     if not conta:
         conta = raw_input('Digite o nome do usuário: ')
@@ -302,9 +299,9 @@ def build_server():
 
     # Otherwise, on 64-bit Ubuntu, you should run:
 
-    # sudo ln -s /usr/lib/x86_64-linux-gnu/libfreetype.so /usr/lib/
-    # sudo ln -s /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/
-    # sudo ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib/
+    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libfreetype.so /usr/lib/' )
+    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/' )
+    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib/' )
 
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
@@ -318,7 +315,12 @@ def mysql_server():
     """Instalar MySQL no servidor"""
     log('Instalando MySQL', yellow)
 
-    db_password = create_password(12)
+    if confirm( "Deseja que o script gere senha automatica para o mysql?" ):
+        db_password = create_password(12)
+    else:
+        db_password = raw_input('Digite a senha root do mysql: ')
+
+    env.db_password = db_password
 
     sudo('echo mysql-server-5.0 mysql-server/root_password password {0} | debconf-set-selections'.format(db_password))
     sudo('echo mysql-server-5.0 mysql-server/root_password_again password {0} | debconf-set-selections'.format(db_password))
@@ -326,7 +328,8 @@ def mysql_server():
     sudo('apt-get -y install libmysqlclient-dev') # nao perguntar senha do mysql pedir senha antes
 
     log('BANCO DE DADOS - PASSWORD', green)
-    print green('password: '.format(db_password))
+    print 'senha root mysql: {0}'.format(db_password)
+    resp = raw_input('Após copiar a senha, clique ENTER para continuar!!!')
 
 
 def git_server():
@@ -343,8 +346,16 @@ def others_server():
         sudo('apt-get -y install ruby rubygems')
     except:
         log('PACOTE DO RUBY GEMS FOI REMOVIDO DO PACKAGES DO UBUNTU', red)
-    sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
+
+    # ubuntu 12
+    # sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
+
+    # ubuntu 14
+    sudo('apt-get -y install php5-fpm php-apc php5-gd php5-imagick php5-curl')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
+
+    # ubuntu 14
+    sudo( 'apt-get install ruby-dev' )
     sudo('gem install compass')
 
 def login():
