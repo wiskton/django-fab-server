@@ -14,7 +14,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = 'root'
-host = '104.236.7.210'
+host = '107.170.65.144'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
@@ -75,9 +75,7 @@ def newserver():
     log('Configurar e instalar todos pacotes necessários para servidor', yellow)
 
     # gera uma chave no servidor para utilizar o comando upload_public_key
-    run('ssh-keygen')
-
-    update_server()
+    # run('ssh-keygen')
 
     update_server()
     upgrade_server()
@@ -90,8 +88,8 @@ def newserver():
     others_server()
 
     # atualizando
-    update_server()
-    upgrade_server()
+    # update_server()
+    # upgrade_server()
 
     # mysql
     mysql_restart
@@ -115,22 +113,6 @@ def newserver():
 
     log('Reiniciando a máquina', yellow)
     reboot()
-
-def listaccount():
-    """Lista usuários do servidor"""
-    log('Lista usuários do servidor', yellow)
-    with cd('/home/'):
-        run('ls')
-
-def aptget(lib=None):
-    """Executa apt-get install no servidor ex: fab aptget:lib=python-pip"""
-    log('Executa apt-get install no servidor', yellow)
-    if not lib:
-        lib = raw_input('Digite o pacote para instalar: sudo apt-get install ')
-    
-    if lib:
-        sudo('apt-get install {0}'.format(lib))
-    # sudo('aptget {0}'.format(display))
 
 # cria uma conta no servidor
 def newaccount():
@@ -187,7 +169,25 @@ def newaccount():
 
     # log para salvar no docs
     log('Anotar dados da conta', green)
-    print green('conta: {0} \n\n-- ssh\nuser: {0}\npw: {1} \n\n-- banco\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha))
+    print green('conta: {0} \n\n-- ssh\nuser: {0}\npw sugerido: {1} \n\n-- banco\nuser: {0}\npw: {2}'.format(env.conta, user_senha, banco_senha))
+
+
+def listaccount():
+    """Lista usuários do servidor"""
+    log('Lista usuários do servidor', yellow)
+    with cd('/home/'):
+        run('ls')
+
+def aptget(lib=None):
+    """Executa apt-get install no servidor ex: fab aptget:lib=python-pip"""
+    log('Executa apt-get install no servidor', yellow)
+    if not lib:
+        lib = raw_input('Digite o pacote para instalar: sudo apt-get install ')
+    
+    if lib:
+        sudo('apt-get install {0}'.format(lib))
+    # sudo('aptget {0}'.format(display))
+
 
 def write_file(filename, destination):
 
