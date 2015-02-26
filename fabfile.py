@@ -154,6 +154,15 @@ def newaccount():
             write_file('supervisor.ini', '/home/{0}/supervisor.ini'.format(env.conta))
         write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
     else:
+
+        log( """IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se 
+                altere a linha 768 do arquivo /etc/php5/fpm/php.ini\n
+                Execute o comando: sudo nano /etc/php5/fpm/php.ini\n
+                Descomente e altere para 1 a var abaixo\n
+                cgi.fix_pathinfo=0\n""", yellow )
+
+        raw_input( 'Descomentar e alterar cgi.fix_pathinfo=0 para cgi.fix_pathinfo=1 - Pressione ENTER para continuar..' )
+
         write_file('nginx_php.conf', '/home/{0}/nginx.conf'.format(env.conta))
         sudo('mkdir /home/{0}/public_html/'.format(env.conta))
 
@@ -351,7 +360,7 @@ def others_server():
     # sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
 
     # ubuntu 14
-    sudo('apt-get -y install php5-fpm php-apc php5-gd php5-imagick php5-curl')
+    sudo('apt-get -y install php5-fpm php-apc php5-gd php5-imagick php5-curl php5-cli php5-mysql')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
 
     # ubuntu 14
