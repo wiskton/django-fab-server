@@ -15,7 +15,7 @@ requirements:
 
 Clone o projeto na máquina na sua pasta de projetos:
 
-    git clone git@github.com:willemallan/django-fab-server.git
+    git clone https://github.com/willemallan/django-fab-server.git
 
 
 Instalando na máquina o pip em distribuições linux badeadas no debian:

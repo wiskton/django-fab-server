@@ -13,8 +13,8 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # ----------------------------------------------------------------
 
 # SERVIDOR
-user = 'root'
-host = '107.170.65.144'
+user = 'google'
+host = '66.249.64.22'
 chave = '' # caminho da chave nome_arquivo.pem
 
 # LOCAL
@@ -57,7 +57,7 @@ env.db_password = ''
 try:
     from local_settings import *
 except ImportError:
-    pass
+    print 'sem local_settings'
 
 # --------------------------------------------------------
 
