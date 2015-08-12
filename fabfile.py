@@ -87,12 +87,8 @@ def newserver():
     git_server()
     others_server()
 
-    # atualizando
-    # update_server()
-    # upgrade_server()
-
     # mysql
-    mysql_restart
+    mysql_restart()
 
     # nginx
     print yellow('nginx - Alterando arquivo /etc/nginx/nginx.conf')
@@ -360,7 +356,7 @@ def others_server():
     # sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
 
     # ubuntu 14
-    sudo('apt-get -y install php5-fpm php-apc php5-gd php5-imagick php5-curl php5-cli php5-mysql')
+    sudo('apt-get -y install php5-fpm php-apc php5-mysql php5-gd php5-imagick php5-curl php5-cli')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
 
     # ubuntu 14
