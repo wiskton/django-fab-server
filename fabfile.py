@@ -151,7 +151,7 @@ def newaccount():
         write_file('bash_login', '/home/{0}/.bash_login'.format(env.conta))
     else:
 
-        log( """IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se 
+        log( """IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se
                 altere a linha 768 do arquivo /etc/php5/fpm/php.ini\n
                 Execute o comando: sudo nano /etc/php5/fpm/php.ini\n
                 Descomente e altere para 1 a var abaixo\n
@@ -188,7 +188,7 @@ def aptget(lib=None):
     log('Executa apt-get install no servidor', yellow)
     if not lib:
         lib = raw_input('Digite o pacote para instalar: sudo apt-get install ')
-    
+
     if lib:
         sudo('apt-get install {0}'.format(lib))
     # sudo('aptget {0}'.format(display))
@@ -304,9 +304,12 @@ def build_server():
 
     # Otherwise, on 64-bit Ubuntu, you should run:
 
-    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libfreetype.so /usr/lib/' )
-    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/' )
-    sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib/' )
+    try:
+        sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libfreetype.so /usr/lib/' )
+        sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libz.so /usr/lib/' )
+        sudo( 'ln -s /usr/lib/x86_64-linux-gnu/libjpeg.so /usr/lib/' )
+    except:
+        pass
 
 def python_server():
     """Instalar todos pacotes necessários do python no servidor"""
