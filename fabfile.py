@@ -359,7 +359,10 @@ def others_server():
     # sudo('apt-get -y install php5-fpm php5-suhosin php-apc php5-gd php5-imagick php5-curl')
 
     # ubuntu 14
-    sudo('apt-get -y install php5-fpm php-apc php5-mysql php5-gd php5-imagick php5-curl php5-cli')
+    # sudo('apt-get -y install php5-fpm php-apc php5-mysql php5-gd php5-imagick php5-curl php5-cli')
+
+    # ubuntu 17
+    sudo('apt-get -y install php7.0-fpm php7.0-apc php7.0-mysql php7.0-gd php7.0-imagick php7.0-curl php7.0-cli')
     sudo('apt-get -y install proftpd') # standalone nao perguntar
 
     # ubuntu 14
