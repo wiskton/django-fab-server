@@ -1,5 +1,6 @@
 #LINUX
 *.py~
+local_setting.py
 
 # MAC OS X
 .DS_Store

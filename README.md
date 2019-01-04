@@ -7,15 +7,15 @@ Como funciona?
 
 requirements:
 
-    servidor ubuntu > 12.04
+    servidor ubuntu > 18.10
     pip
-    fabric==1.6.0
-    jinja2==2.7
+    Fabric==1.14.post1
+    Jinja2==2.10
 
 
 Clone o projeto na máquina na sua pasta de projetos:
 
-    git clone https://github.com/willemallan/django-fab-server.git
+    git clone git@github.com:willemallan/django-fab-server.git
 
 
 Instalando na máquina o pip em distribuições linux badeadas no debian:
