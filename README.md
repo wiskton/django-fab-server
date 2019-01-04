@@ -1,7 +1,7 @@
 django-fab-server
 =================
 
-**Atualizado para ubuntu 18.10**
+**Atualizado para ubuntu 18.10 e script rodando com python3**
 
 Como funciona?
 
