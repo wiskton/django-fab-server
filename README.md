@@ -1,6 +1,8 @@
 django-fab-server
 =================
 
+**Atualizado para ubuntu 18.10**
+
 Como funciona?
 
 <p>É um fabric que acessa o servidor e instala todas dependencias.</p>
