@@ -3,4 +3,3 @@ services:
   fab:
     image: django-fab-server
     build: .
-    restart: always
