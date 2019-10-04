@@ -55,9 +55,9 @@ Configurando uma máquina para rodar python/django e mysql:
 IMPORTANTE
 ==========
 
-##Para dar permissão de acesso externo ao mysql altere o arquivo /etc/mysql/my.conf comentando o comando bind 127.0.0.1
+## Para dar permissão de acesso externo ao mysql altere o arquivo /etc/mysql/my.conf comentando o comando bind 127.0.0.1
 
-##Para o funcionamento de projetos em php altere com sudo a linha 768 do arquivo /etc/php5/fpm/php.ini - mude para 1 e descomente a var cgi.fix_pathinfo=0
+## Para o funcionamento de projetos em php altere com sudo a linha 768 do arquivo /etc/php5/fpm/php.ini - mude para 1 e descomente a var cgi.fix_pathinfo=0
 
 Listando os comandos:
 
