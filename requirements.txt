@@ -1,2 +1,2 @@
-Fabric==1.14.post1
+Fabric==2.5.0
 Jinja2==2.10
