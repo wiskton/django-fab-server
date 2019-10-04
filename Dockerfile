@@ -1,7 +1,7 @@
-FROM python:3-alpine
+FROM python:2-alpine
 ENV PYTHONUNBUFFERED 1
 
-RUN apk update && apk add --no-cache gcc python3-dev musl-dev bash tzdata \
+RUN apk update && apk add --no-cache gcc python-dev musl-dev bash tzdata \
     libressl-dev musl-dev libffi-dev make;
 
 RUN cp /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime; \
