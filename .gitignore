@@ -41,3 +41,5 @@ nosetests.xml
 .project
 .pydevproject
 local_settings.py
+venv
+lupo.pem
