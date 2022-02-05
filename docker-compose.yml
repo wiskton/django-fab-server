@@ -3,3 +3,4 @@ services:
   fab:
     image: django-fab-server
     build: .
+    command: fab list

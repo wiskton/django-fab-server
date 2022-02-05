@@ -8,6 +8,8 @@ verify_ssl = true
 [packages]
 fabric = "*"
 Jinja2 = "*"
+fabric3 = "*"
+python-dotenv = "*"
 
 [requires]
 python_version = "3.7"

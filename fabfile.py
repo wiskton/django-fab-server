@@ -1,10 +1,18 @@
 # -*- coding: utf-8 -*-
 import os
-
+from os.path import exists
 from fabric.api import *
 from fabric.colors import green, red, white, yellow
 from fabric.contrib.console import confirm
 from fabric.contrib.files import upload_template
+from dotenv import load_dotenv
+from pathlib import Path
+
+try:
+    dotenv_path = Path('variable.env')
+    load_dotenv(dotenv_path=dotenv_path)
+except ImportError:
+    print("crie o arquivo variable.env utilizando o variable-template")
 
 CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
@@ -13,20 +21,14 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # ----------------------------------------------------------------
 
 # SERVIDOR
-user = "root"
-host = "192.168.0.1"
-chave = ""  # caminho da chave nome_arquivo.pem
-
-# copiar as variaveis de cima e jogar no local_settings para substituir
-try:
-    from local_settings import *
-except ImportError:
-    print("sem local_settings")
+user = os.environ.get("SSH_USER", "root")
+host = os.environ.get("SSH_HOST", "localhost")
+key_pem = os.environ.get("SSH_PEM", "")  # caminho da chave pem nome_arquivo.pem
 
 # LOCAL
-bitbucket_user = "conta"
-bitbucket_project_default = "projeto_padrao"
-folder_project_local = "~/projetos/"
+git_user = os.environ.get("GIT_USER", "")
+git_default_project = os.environ.get("GIT_DEFAULT_PROJECT", "")
+folder_project_local = os.environ.get("DIR_PROJECTS", "")
 
 # diretório do conf.d do supervisor
 env.supervisor_conf_d_path = "/etc/supervisor/conf.d"
@@ -41,7 +43,7 @@ env.dominio = ""
 env.linguagem = ""
 
 # senha do root do mysql
-env.mysql_password = ""
+env.mysql_password = os.environ.get("MYSQL_ROOT_PW", "")
 
 # porta para rodar o projeto
 env.porta = ""
@@ -50,7 +52,7 @@ env.porta = ""
 env.nginx_sites_enable_path = "/etc/nginx/sites-enabled"
 
 # endereco da chave
-env.key_filename = chave
+env.key_filename = key_pem
 
 # verificando django1.7 para supervisor
 env.django17 = False
@@ -74,7 +76,10 @@ def newserver():
     log("Configurar e instalar todos pacotes necessários para servidor", yellow)
 
     # gera uma chave no servidor para utilizar o comando upload_public_key
-    # run('ssh-keygen')
+    # if not exists("~/.ssh/id_rsa.pub"):
+    #     local('ssh-keygen')
+
+    # upload_public_key()
 
     update_server()
     upgrade_server()
@@ -379,10 +384,7 @@ def python_server():
     log("Instalando todos pacotes necessários", yellow)
     sudo("sudo apt -y install libjpeg-dev libfreetype6 libfreetype6-dev zlib1g-dev")
     sudo("apt -y install python-pil libjpeg62 libjpeg62-dev")
-    sudo(
-        "apt -y install python python-dev python-setuptools python-mysqldb python-pip python-virtualenv"
-    )
-    # sudo('easy_install -U distribute')
+    sudo("apt -y install python3 python3-dev python3-setuptools python3-mysqldb python3-pip python3-virtualenv")
 
 
 def mysql_server():
@@ -397,12 +399,12 @@ def mysql_server():
     env.db_password = db_password
 
     sudo(
-        "echo mysql-server-5.0 mysql-server/root_password password {0} | debconf-set-selections".format(
+        "echo mysql-server mysql-server/root_password password {0} | debconf-set-selections".format(
             db_password
         )
     )
     sudo(
-        "echo mysql-server-5.0 mysql-server/root_password_again password {0} | debconf-set-selections".format(
+        "echo mysql-server mysql-server/root_password_again password {0} | debconf-set-selections".format(
             db_password
         )
     )
@@ -442,10 +444,10 @@ def others_server():
     # sudo('apt -y install php7.0-fpm php7.0-apc php7.0-mysql php7.0-gd php7.0-imagick php7.0-curl php7.0-cli')
     # sudo('apt -y install proftpd') # standalone nao perguntar
 
-    # ubuntu 18
+    # ubuntu 20.04
     sudo("add-apt-repository universe")
     sudo(
-        "apt -y install php7.2-fpm php7.2-apc php7.2-mysql php7.2-gd php7.2-imagick php7.2-curl php7.2-cli"
+        "apt -y install php7.4-fpm php7.4-apcu php7.4-mysql php7.4-gd php7.4-imagick php7.4-curl php7.4-cli"
     )
     sudo("apt -y install proftpd")  # standalone nao perguntar
 
@@ -456,7 +458,7 @@ def others_server():
 
 def login():
     """Acessa o servidor"""
-    if chave:
+    if key_pem:
         local("ssh %s -i %s" % (prod_server, env.key_filename))
     else:
         local("ssh %s" % prod_server)
@@ -598,9 +600,9 @@ def newproject():
 
     conta = input("Digite o nome do projeto: ")
 
-    local('echo "clonando projeto %s"' % bitbucket_repository)
+    local('echo "clonando projeto %s"' % git_default_project)
     local(
-        "git clone {0} {1}{2}".format(bitbucket_repository, folder_project_local, conta)
+        "git clone {0} {1}{2}".format(git_default_project, folder_project_local, conta)
     )
     local("cd {0}{1}".format(folder_project_local, conta))
     local("mkvirtualenv {0}".format(conta))
@@ -611,7 +613,7 @@ def newproject():
     local("git init")
     local(
         "git remote add origin git@bitbucket.org:{0}/{1}.git".format(
-            bitbucket_user, conta
+            git_user, conta
         )
     )
 

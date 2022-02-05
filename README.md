@@ -1,18 +1,17 @@
 django-fab-server
 =================
 
-**Atualizado para ubuntu 18.10 e script rodando com python3**
+**Atualizado para ubuntu 20.04 utilizando docker rodando com o script rodando com python3**
 
 Como funciona?
 
-<p>É um fabric que acessa o servidor e instala todas dependencias.</p>
+<p>É um fabric que acessa o servidor e instala todas dependencias. <BR>É preciso clonar o arquivo variable-template.env e renomear para variable.env e configurar as variáveis antes de rodar.</p>
 
 requirements:
 
-    servidor ubuntu > 18.10
-    pip
-    Fabric==1.14.post1
-    Jinja2==2.10
+    git
+    docker
+    docker-compose
 
 
 Clone o projeto na máquina na sua pasta de projetos:
@@ -20,24 +19,9 @@ Clone o projeto na máquina na sua pasta de projetos:
     git clone git@github.com:willemallan/django-fab-server.git
 
 
-Instalando na máquina o pip em distribuições linux badeadas no debian:
+Criar o container:
 
-    sudo apt-get install python-pip
-
-
-Não precisa criar um env pode até instalar o fabric e o jinja2 no sistema caso prefira crie um env:
-
-    mkvirtualenv djangofabserver
-
-Entrar no diretório do django fab server:
-
-    cd django-fab-server
-    setvirtualenvproject
-
-
-Instale os requirements do django fab server:
-
-    pip install -r requirements.txt
+    docker-compose up --build
 
 
 Configurando uma máquina para rodar python/django e mysql:
@@ -61,7 +45,13 @@ IMPORTANTE
 
 Listando os comandos:
 
-    fab list
+    docker-compose run fab
+
+
+Executar um comando:
+
+    docker-compose run fab fab newserver
+
 
 Comandos disponíveis:
 
@@ -75,13 +65,16 @@ Comandos disponíveis:
     git_local           Instalando git
     git_server          Instalar git no servidor
     listaccount         Lista usuários do servidor
+
     log
     login               Acessa o servidor
+
     mysql_local         Instalando MySQL
     mysql_restart       Restart mysql no servidor
     mysql_server        Instalar MySQL no servidor
     mysql_start         start mysql no servidor
     mysql_stop          stop mysql no servidor
+
     newaccount          Criar uma nova conta do usuário no servidor
     newbase             Criar banco de dados e usuário no servidor
     newdev              Configura uma maquina local Ubuntu para trabalhar pyth...
