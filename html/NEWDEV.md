@@ -1,10 +1,11 @@
 django-fab-server
 =================
 
-
+Os comandos abaixo rodam de dentro da pasta `server/` deste repositório.
 
 Configurando um computador para desenvolver em python/django:
 
+    cd server
     fab newdev
 
 

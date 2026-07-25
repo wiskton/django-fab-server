@@ -1,6 +1,5 @@
 #LINUX
 *.py~
-local_setting.py
 
 # MAC OS X
 .DS_Store
@@ -42,4 +41,15 @@ nosetests.xml
 .pydevproject
 local_settings.py
 venv
+.venv
 lupo.pem
+
+# Python
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# chaves privadas usadas para acessar o servidor (ver variável `chave`)
+*.pem
+*.key

@@ -4,14 +4,17 @@ Utilizando script para Servidor
 <p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
 
 
-Alterar configurações no fabfile.py:
+Os comandos abaixo rodam de dentro da pasta `server/` deste repositório.
+Alterar as configurações copiando `server/local_settings-template.py` para
+`server/local_settings.py`:
 
-    username = 'root'
+    user = 'root'
     host = '192.168.1.111'
 
 
 Configura um novo servidor instalando todos pacotes necessários:
 
+    cd server
     fab newserver
 
 Reiniciar nginx e supervisor
@@ -35,7 +38,7 @@ Exclui uma conta no servidor:
 
 <h3>Clonar projeto no servidor</h3>
 
-<p><a href="https://github.com/willemallan/django-fab-server/blob/master/projeto/fabfile.py">fabfile</a> usado no projeto para subir os dados no servidor.</p>
+<p><a href="https://github.com/willemallan/django-fab-server/blob/master/client/fabfile.py">fabfile</a> usado no projeto para subir os dados no servidor.</p>
 
 <p>Estrutura dos projetos - são utilizados 3 domínios media e static separados.</p>
 
@@ -67,12 +70,12 @@ exemplo do settings.py do projeto:
 <p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
 <p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
 
-Baixar esse <a href="https://github.com/willemallan/django-fab-server/blob/master/projeto/fabfile.py">fabfile</a> para o projeto.
+Baixar esse <a href="https://github.com/willemallan/django-fab-server/blob/master/client/fabfile.py">fabfile</a> para o projeto.
 
 
 Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
 
-    fab config (Instala o distribute e os requirements.txt no env. Executa o syncdb, migrate e collectstatic)
+    fab config (instala o pip e os requirements.txt no env. Executa o migrate e collectstatic)
 
 
 Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
@@ -82,7 +85,7 @@ Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
 
 Rode o projeto com o gunicorn para testar se ele esta instalado no env e no INSTALLED_APPS:
 
-    python project/manage.py run_gunicorn
+    gunicorn project.wsgi:application
 
 
 Sai do servidor:
@@ -101,11 +104,11 @@ Outros comandos
 
 Reinicie NGINX
 
-    fab nginx_restart
+    fab nginx-restart
 
 Reinicie SUPERVISOR
 
-    fab supervisor_restart
+    fab supervisor-restart
 
 
 
