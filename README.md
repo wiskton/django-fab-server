@@ -311,15 +311,16 @@ docker compose build
 
 ```bash
 # fabfile.py de server/ (provisiona o servidor)
-docker compose run --rm fab fab --list
-docker compose run --rm fab fab newserver
+docker compose run --rm fab --list
+docker compose run --rm fab newserver
 
 # fabfile.py de client/ (deploy do seu projeto)
-docker compose run --rm fab-client fab --list
-docker compose run --rm fab-client fab deploy
+docker compose run --rm fab-client --list
+docker compose run --rm fab-client deploy
 ```
 
-Os dois serviços montam o repositório (`.:/code`) e o seu `~/.ssh` (somente
+Os dois serviços já têm `fab` como `entrypoint` (sem precisar repetir
+`fab fab ...`) e montam o repositório (`.:/code`) e o seu `~/.ssh` (somente
 leitura) como volumes — assim `local_settings.py`, chaves SSH e edições nos
 fabfiles valem na hora, sem precisar rebuildar a imagem a cada mudança.
 

@@ -8,7 +8,8 @@ services:
     volumes:
       - .:/code
       - ~/.ssh:/root/.ssh:ro
-    command: fab --list
+    entrypoint: [fab]
+    command: [--list]
 
   # fabfile.py "cliente" (deploy, config...) -- roda daqui pra testar/editar,
   # depois é só copiar client/fabfile.py sozinho para dentro do seu projeto
@@ -18,4 +19,5 @@ services:
     volumes:
       - .:/code
       - ~/.ssh:/root/.ssh:ro
-    command: fab --list
+    entrypoint: [fab]
+    command: [--list]
