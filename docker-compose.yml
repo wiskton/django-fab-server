@@ -1,5 +1,21 @@
 version: "3"
 services:
+  # fabfile.py que PROVISIONA o servidor (newserver, newaccount...)
   fab:
     image: django-fab-server
     build: .
+    working_dir: /code/server
+    volumes:
+      - .:/code
+      - ~/.ssh:/root/.ssh:ro
+    command: fab --list
+
+  # fabfile.py "cliente" (deploy, config...) -- roda daqui pra testar/editar,
+  # depois é só copiar client/fabfile.py sozinho para dentro do seu projeto
+  fab-client:
+    image: django-fab-server
+    working_dir: /code/client
+    volumes:
+      - .:/code
+      - ~/.ssh:/root/.ssh:ro
+    command: fab --list
