@@ -1,7 +1,7 @@
 django-fab-server
 =================
 
-**Atualizado para Ubuntu 24.04 LTS, Python 3 e Fabric 3.x**
+**Suporta Ubuntu, Debian, Fedora, CentOS Stream/RHEL e Arch Linux -- Python 3 e Fabric 3.x**
 
 Como funciona?
 
@@ -23,7 +23,7 @@ de outro repositório (o do seu projeto Django/PHP).
 
 requirements:
 
-    servidor Ubuntu 24.04 LTS (ou superior)
+    servidor Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux
     Python 3.10+
     pip
     Fabric==3.2.3
@@ -63,6 +63,30 @@ vários projetos diferentes, basta manter um `server/local_settings.py`
 próprio (não versionado) em cada cópia/clone, apontando para o servidor
 daquele projeto. Os comandos `fab ...` abaixo devem ser rodados de dentro de
 `server/`.
+
+Além de `user`/`host`/`chave`, o `local_settings.py` também define a distro
+do servidor em `os_family`, usada para escolher o gerenciador de pacotes
+(`apt`/`dnf`/`pacman`) e os nomes de pacotes/serviços certos:
+
+    os_family = "debian"  # "debian" (Ubuntu/Debian), "fedora", "rhel"
+                           # (CentOS Stream/RHEL/Rocky/Alma) ou "arch"
+
+Diferenças conhecidas entre distros (ver `server/fabfile.py`, tabelas
+`_..._BY_FAMILY`):
+
+* **Banco de dados**: fora do Debian/Ubuntu o servidor instalado é o
+  **MariaDB** (`mariadb-server`, serviço `mariadb`), não o MySQL da Oracle --
+  os repositórios oficiais de Fedora/RHEL/Arch não empacotam o MySQL. No Arch
+  também é necessário inicializar o datadir (`mariadb-install-db`) antes do
+  primeiro start, o que o fabfile já faz automaticamente.
+* **FTP**: o Arch não tem pacote oficial de `proftpd` (só via AUR), então lá
+  o `fab newserver` instala e configura **vsftpd** em vez de proftpd. Nas
+  demais distros continua sendo proftpd.
+* **PHP**: no CentOS Stream/RHEL é instalada a versão padrão do `php-fpm` do
+  AppStream (sem habilitar o repositório Remi), que pode ser mais antiga que
+  o PHP 8.3 usado em Ubuntu/Debian/Fedora/Arch.
+* **CentOS** aqui significa CentOS Stream (usa `dnf`, assim como
+  RHEL/Rocky/AlmaLinux).
 
 
 Configurando uma máquina para rodar python/django e mysql:

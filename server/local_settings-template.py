@@ -15,3 +15,10 @@
 user = "root"
 host = "192.168.0.1"
 chave = ""  # caminho da chave privada ssh, ex: "~/.ssh/meu_projeto.pem"
+
+# distro do servidor (e da maquina local, para os comandos fab *_local):
+#   "debian" -> Ubuntu, Debian
+#   "fedora" -> Fedora
+#   "rhel"   -> CentOS Stream, RHEL, Rocky Linux, AlmaLinux
+#   "arch"   -> Arch Linux, Manjaro
+os_family = "debian"

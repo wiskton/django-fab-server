@@ -7,6 +7,8 @@ SAMPLE_CONTEXT = {
     "dominio": "acme.com.br",
     "porta": "8060",
     "pasta_settings": "config",
+    "nginx_user": "www-data",
+    "php_fpm_sock": "/run/php/php8.3-fpm.sock",
 }
 
 # bashrc não é usado por write_file() em nenhum lugar do fabfile.py
@@ -38,10 +40,31 @@ def test_nginx_conf_uses_sample_values(inc_dir):
     assert "/home/acme/" in rendered
 
 
-def test_nginx_php_conf_targets_php83_fpm_socket(inc_dir):
-    content = (inc_dir / "nginx_php.conf").read_text()
-    assert "php8.3-fpm.sock" in content
-    assert "php5-fpm" not in content
+def test_nginx_php_conf_targets_configured_fpm_socket(inc_dir):
+    env = _jinja_env(inc_dir)
+    rendered = env.get_template("nginx_php.conf").render(**SAMPLE_CONTEXT)
+    assert "unix:/run/php/php8.3-fpm.sock;" in rendered
+    assert "php5-fpm" not in rendered
+
+
+def test_nginx_php_conf_socket_follows_php_fpm_sock_variable(inc_dir):
+    # o socket não fica mais fixo no template -- muda conforme a distro
+    # (ver _PHP_FPM_SOCK_BY_FAMILY em server/fabfile.py)
+    env = _jinja_env(inc_dir)
+    context = dict(SAMPLE_CONTEXT, php_fpm_sock="/run/php-fpm/www.sock")
+    rendered = env.get_template("nginx_php.conf").render(**context)
+    assert "unix:/run/php-fpm/www.sock;" in rendered
+    assert "php8.3-fpm.sock" not in rendered
+
+
+def test_nginx_server_conf_uses_configured_worker_user(inc_dir):
+    env = _jinja_env(inc_dir)
+    rendered = env.get_template("nginx_server.conf").render(**SAMPLE_CONTEXT)
+    assert "user www-data;" in rendered
+
+    context = dict(SAMPLE_CONTEXT, nginx_user="nginx")
+    rendered = env.get_template("nginx_server.conf").render(**context)
+    assert "user nginx;" in rendered
 
 
 def test_supervisor_ini_uses_wsgi_module_not_run_gunicorn(inc_dir):

@@ -10,13 +10,18 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # ----------------------------------------------------------------
 # ALTERAR CONFIGURAÇÕES BASEADAS NO SEUS SERVIDOR E MAQUINA LOCAL
-# Testado para servidores Ubuntu 24.04 LTS
+# Suporta servidores Ubuntu, Debian, Fedora, CentOS Stream/RHEL e Arch Linux
+# -- veja a variável `os_family` abaixo
 # ----------------------------------------------------------------
 
 # SERVIDOR
 user = "root"
 host = "192.168.0.1"
 chave = ""  # caminho da chave nome_arquivo.pem
+
+# distro do servidor remoto: "debian" (Ubuntu/Debian), "fedora", "rhel"
+# (CentOS Stream/RHEL/Rocky/Alma) ou "arch" (Arch Linux/Manjaro)
+os_family = "debian"
 
 # copiar as variaveis de cima e jogar no local_settings para substituir
 try:
@@ -58,6 +63,7 @@ cfg = Config(
     key_filename=chave,
     pasta_settings="",
     db_password="",
+    os_family=os_family,
 )
 
 
@@ -128,11 +134,171 @@ def _systemctl(service, action):
     get_connection().sudo("systemctl {0} {1}".format(action, service))
 
 
-_BUILD_PACKAGES = (
-    "build-essential automake",
-    "libxml2-dev libxslt-dev",
+# --------------------------------------------------------
+# MULTI-DISTRO: pacotes/serviços variam por `cfg.os_family`
+# --------------------------------------------------------
+#
+# "debian" = Ubuntu/Debian (apt)
+# "fedora" = Fedora (dnf, sem precisar de EPEL)
+# "rhel"   = CentOS Stream/RHEL/Rocky/Alma (dnf, precisa de EPEL para
+#            supervisor/mercurial/proftpd)
+# "arch"   = Arch Linux/Manjaro (pacman)
+
+_OS_FAMILIES = ("debian", "fedora", "rhel", "arch")
+
+_BUILD_PACKAGES_BY_FAMILY = {
+    "debian": "build-essential automake libxml2-dev libxslt-dev "
     "libjpeg-dev zlib1g-dev libfreetype6-dev libwebp-dev",
-)
+    "fedora": "gcc gcc-c++ make automake libxml2-devel libxslt-devel "
+    "libjpeg-turbo-devel zlib-devel freetype-devel libwebp-devel",
+    "rhel": "gcc gcc-c++ make automake libxml2-devel libxslt-devel "
+    "libjpeg-turbo-devel zlib-devel freetype-devel libwebp-devel",
+    # base-devel é um grupo de pacotes; libs do Arch não separam runtime/dev
+    "arch": "base-devel automake libxml2 libxslt libjpeg-turbo zlib "
+    "freetype2 libwebp",
+}
+
+_PYTHON_PACKAGES_BY_FAMILY = {
+    "debian": "python3 python3-dev python3-venv python3-pip python3-pil python3-mysqldb",
+    # venv já vem no python3 padrão do fedora/rhel, sem pacote separado
+    "fedora": "python3 python3-devel python3-pip python3-pillow python3-mysqlclient",
+    "rhel": "python3 python3-devel python3-pip python3-pillow python3-mysqlclient",
+    "arch": "python python-pip python-pillow python-mysqlclient",
+}
+
+_DB_PACKAGES_BY_FAMILY = {
+    "debian": "mysql-server libmysqlclient-dev",
+    "fedora": "mariadb-server mariadb-devel",
+    "rhel": "mariadb-server mariadb-devel",
+    "arch": "mariadb mariadb-libs",
+}
+
+# fora do debian o servidor de banco é o MariaDB (não há MySQL da Oracle nos
+# repositórios oficiais de fedora/rhel/arch)
+_DB_SERVICE_BY_FAMILY = {
+    "debian": "mysql",
+    "fedora": "mariadb",
+    "rhel": "mariadb",
+    "arch": "mariadb",
+}
+
+_PHP_PACKAGES_BY_FAMILY = {
+    "debian": "php8.3-fpm php8.3-mysql php8.3-gd php8.3-imagick php8.3-curl php8.3-cli",
+    "fedora": "php-fpm php-mysqlnd php-gd php-pecl-imagick php-curl php-cli",
+    # usa a versão padrão do dnf module (AppStream), sem habilitar Remi --
+    # pode divergir da versão usada nas outras distros
+    "rhel": "php-fpm php-mysqlnd php-gd php-pecl-imagick php-curl php-cli",
+    # imagick não é empacotado oficialmente no Arch (só AUR)
+    "arch": "php-fpm php-gd",
+}
+
+_PHP_FPM_SOCK_BY_FAMILY = {
+    "debian": "/run/php/php8.3-fpm.sock",
+    "fedora": "/run/php-fpm/www.sock",
+    "rhel": "/run/php-fpm/www.sock",
+    "arch": "/run/php-fpm/php-fpm.sock",
+}
+
+_PHP_INI_PATH_BY_FAMILY = {
+    "debian": "/etc/php/8.3/fpm/php.ini",
+    "fedora": "/etc/php.ini",
+    "rhel": "/etc/php.ini",
+    "arch": "/etc/php/php.ini",
+}
+
+# usuário que o worker do nginx usa (definido no pacote de cada distro)
+_NGINX_USER_BY_FAMILY = {
+    "debian": "www-data",
+    "fedora": "nginx",
+    "rhel": "nginx",
+    "arch": "http",
+}
+
+# nome da unit do systemd -- o pacote empacotado fora do debian se chama
+# "supervisord" (com "d" no final)
+_SUPERVISOR_SERVICE_BY_FAMILY = {
+    "debian": "supervisor",
+    "fedora": "supervisord",
+    "rhel": "supervisord",
+    "arch": "supervisord",
+}
+
+_SUPERVISOR_CONF_PATH_BY_FAMILY = {
+    "debian": "/etc/supervisor/supervisord.conf",
+    "fedora": "/etc/supervisord.conf",
+    "rhel": "/etc/supervisord.conf",
+    "arch": "/etc/supervisord.conf",
+}
+
+# FTP: proftpd não tem pacote oficial no Arch (só AUR) -- usa vsftpd lá
+_FTP_BY_FAMILY = {
+    "debian": {
+        "package": "proftpd",
+        "template": "proftpd.conf",
+        "destination": "/etc/proftpd/proftpd.conf",
+        "service": "proftpd",
+    },
+    "fedora": {
+        "package": "proftpd",
+        "template": "proftpd.conf",
+        "destination": "/etc/proftpd/proftpd.conf",
+        "service": "proftpd",
+    },
+    "rhel": {
+        "package": "proftpd",
+        "template": "proftpd.conf",
+        "destination": "/etc/proftpd/proftpd.conf",
+        "service": "proftpd",
+    },
+    "arch": {
+        "package": "vsftpd",
+        "template": "vsftpd.conf",
+        "destination": "/etc/vsftpd.conf",
+        "service": "vsftpd",
+    },
+}
+
+
+def _install(c, packages):
+    """Instala pacotes usando o gerenciador certo para `cfg.os_family`."""
+    family = cfg.os_family
+    conn = get_connection()
+    if family == "debian":
+        conn.sudo("apt -y install {0}".format(packages))
+    elif family in ("fedora", "rhel"):
+        conn.sudo("dnf -y install {0}".format(packages))
+    elif family == "arch":
+        conn.sudo("pacman -S --noconfirm --needed {0}".format(packages))
+    else:
+        raise ValueError(
+            "os_family desconhecido: {0!r} (use um de {1})".format(family, _OS_FAMILIES)
+        )
+
+
+def _install_local(c, packages):
+    """Instala pacotes na máquina local usando o gerenciador certo para
+    `cfg.os_family` (equivalente a `_install`, mas via `c.run` local em vez
+    de SSH)."""
+    family = cfg.os_family
+    if family == "debian":
+        c.run("sudo apt -y install {0}".format(packages))
+    elif family in ("fedora", "rhel"):
+        c.run("sudo dnf -y install {0}".format(packages))
+    elif family == "arch":
+        c.run("sudo pacman -S --noconfirm --needed {0}".format(packages))
+    else:
+        raise ValueError(
+            "os_family desconhecido: {0!r} (use um de {1})".format(family, _OS_FAMILIES)
+        )
+
+
+@functools.lru_cache(maxsize=1)
+def _ensure_epel(c):
+    """Habilita o repositório EPEL, necessário em RHEL/CentOS Stream/Rocky/
+    Alma para instalar supervisor, mercurial e proftpd (fedora já traz esses
+    pacotes nos repositórios padrão, sem precisar de EPEL)."""
+    if cfg.os_family == "rhel":
+        get_connection().sudo("dnf -y install epel-release")
 
 
 def _mysql_exec(sql, password=None):
@@ -205,18 +371,21 @@ def newserver(c):
     mysql_restart(c)
 
     # nginx
+    cfg.nginx_user = _NGINX_USER_BY_FAMILY[cfg.os_family]
     print(yellow("nginx - Alterando arquivo /etc/nginx/nginx.conf"))
     write_file("nginx_server.conf", "/etc/nginx/nginx.conf")
     nginx_restart(c)
 
-    # proftpd
-    print(yellow("proftpd - Alterando arquivo /etc/proftpd/proftpd.conf"))
-    write_file("proftpd.conf", "/etc/proftpd/proftpd.conf")
+    # ftp (proftpd, ou vsftpd no Arch)
+    ftp = _FTP_BY_FAMILY[cfg.os_family]
+    print(yellow("{0} - Alterando arquivo {1}".format(ftp["package"], ftp["destination"])))
+    write_file(ftp["template"], ftp["destination"])
     proftpd_restart(c)
 
     # supervisor
-    print(yellow("supervisor - Alterando arquivo /etc/supervisor/supervisord.conf"))
-    write_file("supervisord_server.conf", "/etc/supervisor/supervisord.conf")
+    supervisor_conf_path = _SUPERVISOR_CONF_PATH_BY_FAMILY[cfg.os_family]
+    print(yellow("supervisor - Alterando arquivo {0}".format(supervisor_conf_path)))
+    write_file("supervisord_server.conf", supervisor_conf_path)
     supervisor_restart(c)
 
     log("Anote a senha do banco de dados: {0}".format(cfg.db_password), green)
@@ -272,13 +441,15 @@ def newaccount(c):
         write_file("supervisor.ini", "/home/{0}/supervisor.ini".format(cfg.conta))
         write_file("bash_login", "/home/{0}/.bash_login".format(cfg.conta))
     else:
-
+        php_ini = _PHP_INI_PATH_BY_FAMILY[cfg.os_family]
         log(
             """IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se
-                altere o arquivo /etc/php/8.3/fpm/php.ini\n
-                Execute o comando: sudo nano /etc/php/8.3/fpm/php.ini\n
+                altere o arquivo {0}\n
+                Execute o comando: sudo nano {0}\n
                 Descomente e altere para 0 a var abaixo\n
-                cgi.fix_pathinfo=0\n""",
+                cgi.fix_pathinfo=0\n""".format(
+                php_ini
+            ),
             yellow,
         )
 
@@ -286,6 +457,7 @@ def newaccount(c):
             "Alterar cgi.fix_pathinfo para 0 - Pressione ENTER para continuar.."
         )
 
+        cfg.php_fpm_sock = _PHP_FPM_SOCK_BY_FAMILY[cfg.os_family]
         write_file("nginx_php.conf", "/home/{0}/nginx.conf".format(cfg.conta))
         conn.sudo("mkdir /home/{0}/public_html/".format(cfg.conta))
 
@@ -321,13 +493,13 @@ def listaccount(c):
 
 @task
 def aptget(c, lib=None):
-    """Executa apt install no servidor ex: fab aptget --lib=python3-pip"""
-    log("Executa apt install no servidor", yellow)
+    """Instala um pacote no servidor (apt/dnf/pacman conforme os_family) ex: fab aptget --lib=python3-pip"""
+    log("Instalando pacote no servidor", yellow)
     if not lib:
-        lib = input("Digite o pacote para instalar: sudo apt install ")
+        lib = input("Digite o pacote para instalar: ")
 
     if lib:
-        get_connection().sudo("apt install {0}".format(lib))
+        _install(c, lib)
 
 
 @task
@@ -436,33 +608,46 @@ def userdel(c, conta=None):
 def update_server(c):
     """Atualizando pacotes no servidor"""
     log("Atualizando pacotes", yellow)
-    get_connection().sudo("apt -y update")
+    conn = get_connection()
+    family = cfg.os_family
+    if family == "debian":
+        conn.sudo("apt -y update")
+    elif family in ("fedora", "rhel"):
+        conn.sudo("dnf makecache")
+    elif family == "arch":
+        # seguro aqui porque `newserver` sempre chama upgrade_server (pacman
+        # -Su) logo em seguida -- rodar só "-Sy" isolado (sem upgrade) não é
+        # recomendado no Arch (partial upgrade)
+        conn.sudo("pacman -Sy --noconfirm")
 
 
 @task
 def upgrade_server(c):
     """Atualizar programas no servidor"""
     log("Atualizando programas", yellow)
-    get_connection().sudo("apt -y upgrade")
+    conn = get_connection()
+    family = cfg.os_family
+    if family == "debian":
+        conn.sudo("apt -y upgrade")
+    elif family in ("fedora", "rhel"):
+        conn.sudo("dnf -y upgrade")
+    elif family == "arch":
+        conn.sudo("pacman -Su --noconfirm")
 
 
 @task
 def build_server(c):
     """Instalar build-essential e outros pacotes importantes no servidor"""
     log("Instalando build-essential e outros pacotes", yellow)
-    conn = get_connection()
-    for packages in _BUILD_PACKAGES:
-        conn.sudo("apt -y install {0}".format(packages))
+    _install(c, _BUILD_PACKAGES_BY_FAMILY[cfg.os_family])
 
 
 @task
 def python_server(c):
     """Instalar todos pacotes necessários do python no servidor"""
     log("Instalando todos pacotes necessários", yellow)
-    conn = get_connection()
-    conn.sudo(
-        "apt -y install python3 python3-dev python3-venv python3-pip python3-pil python3-mysqldb"
-    )
+    _ensure_epel(c)
+    _install(c, _PYTHON_PACKAGES_BY_FAMILY[cfg.os_family])
 
 
 @task
@@ -477,15 +662,27 @@ def mysql_server(c):
 
     cfg.db_password = db_password
 
+    family = cfg.os_family
     conn = get_connection()
-    conn.sudo("apt -y install mysql-server libmysqlclient-dev")
+    _install(c, _DB_PACKAGES_BY_FAMILY[family])
 
-    # nas versões atuais do mysql-server o usuário root usa auth_socket por
-    # padrão (sem senha via debconf); definimos a senha explicitamente aqui.
-    # `sudo mysql` já autentica via socket (usuário do SO = root), sem
-    # precisar de senha nesta primeira chamada.
+    service = _DB_SERVICE_BY_FAMILY[family]
+    if family == "arch":
+        # o pacote do Arch não inicializa o datadir sozinho (ao contrário do
+        # apt/dnf, que já deixam o mysql/mariadb rodando após a instalação)
+        conn.sudo("mariadb-install-db --datadir=/var/lib/mysql --basedir=/usr")
+    if family != "debian":
+        # dnf/pacman não iniciam nem habilitam o serviço sozinhos
+        _systemctl(service, "enable --now")
+
+    # nas versões atuais do mysql-server/mariadb-server o usuário root usa
+    # auth_socket (ou unix_socket) por padrão, sem senha via debconf;
+    # definimos a senha explicitamente aqui. `sudo mysql` já autentica via
+    # socket (usuário do SO = root), sem precisar de senha nesta primeira
+    # chamada. Sintaxe portável entre MySQL e MariaDB (sem "WITH
+    # caching_sha2_password", que não existe no MariaDB).
     _mysql_exec(
-        "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '{0}'; FLUSH PRIVILEGES;".format(
+        "ALTER USER 'root'@'localhost' IDENTIFIED BY '{0}'; FLUSH PRIVILEGES;".format(
             db_password
         )
     )
@@ -499,22 +696,27 @@ def mysql_server(c):
 def git_server(c):
     """Instalar git no servidor"""
     log("Instalando git", yellow)
-    get_connection().sudo("apt -y install git")
+    _install(c, "git")
 
 
 @task
 def others_server(c):
     """Instalar nginx, supervisor e php-fpm"""
     log("Instalando nginx e supervisor", yellow)
+    family = cfg.os_family
     conn = get_connection()
-    conn.sudo("apt -y install nginx supervisor")
-    conn.sudo("apt -y install mercurial")
+    _ensure_epel(c)
 
-    conn.sudo("add-apt-repository -y universe")
-    conn.sudo(
-        "apt -y install php8.3-fpm php8.3-mysql php8.3-gd php8.3-imagick php8.3-curl php8.3-cli"
-    )
-    conn.sudo("apt -y install proftpd")
+    _install(c, "nginx supervisor")
+    _install(c, "mercurial")
+
+    if family == "debian":
+        conn.sudo("add-apt-repository -y universe")
+
+    _install(c, _PHP_PACKAGES_BY_FAMILY[family])
+
+    ftp = _FTP_BY_FAMILY[family]
+    _install(c, ftp["package"])
 
 
 @task
@@ -561,9 +763,10 @@ def reboot(c):
 
 @task
 def proftpd_restart(c):
-    """restart proftpd"""
-    log("restart proftpd", yellow)
-    _systemctl("proftpd", "restart")
+    """restart proftpd (ou vsftpd, no Arch)"""
+    service = _FTP_BY_FAMILY[cfg.os_family]["service"]
+    log("restart {0}".format(service), yellow)
+    _systemctl(service, "restart")
 
 
 # SUPERVISOR APP
@@ -596,21 +799,21 @@ def restart_server(c):
 def supervisor_start(c):
     """Start supervisor no servidor"""
     log("start supervisor", green)
-    _systemctl("supervisor", "start")
+    _systemctl(_SUPERVISOR_SERVICE_BY_FAMILY[cfg.os_family], "start")
 
 
 @task
 def supervisor_stop(c):
     """Stop supervisor no servidor"""
     log("stop supervisor", red)
-    _systemctl("supervisor", "stop")
+    _systemctl(_SUPERVISOR_SERVICE_BY_FAMILY[cfg.os_family], "stop")
 
 
 @task
 def supervisor_restart(c):
     """Restart supervisor no servidor"""
     log("restart supervisor", yellow)
-    _systemctl("supervisor", "restart")
+    _systemctl(_SUPERVISOR_SERVICE_BY_FAMILY[cfg.os_family], "restart")
 
 
 # NGINX
@@ -646,21 +849,21 @@ def nginx_reload(c):
 def mysql_restart(c):
     """Restart mysql no servidor"""
     log("restart mysql", yellow)
-    _systemctl("mysql", "restart")
+    _systemctl(_DB_SERVICE_BY_FAMILY[cfg.os_family], "restart")
 
 
 @task
 def mysql_start(c):
     """start mysql no servidor"""
     log("start mysql", green)
-    _systemctl("mysql", "start")
+    _systemctl(_DB_SERVICE_BY_FAMILY[cfg.os_family], "start")
 
 
 @task
 def mysql_stop(c):
     """stop mysql no servidor"""
     log("stop mysql", red)
-    _systemctl("mysql", "stop")
+    _systemctl(_DB_SERVICE_BY_FAMILY[cfg.os_family], "stop")
 
 
 # --------------------------------------------------------
@@ -700,8 +903,8 @@ def newproject(c):
 
 @task
 def newdev(c):
-    """Configura uma maquina local Ubuntu para trabalhar python/django"""
-    log("Configura uma computador Ubuntu para trabalhar python/django", yellow)
+    """Configura uma maquina local (conforme os_family) para trabalhar python/django"""
+    log("Configura um computador para trabalhar python/django", yellow)
     update_local(c)
     upgrade_local(c)
 
@@ -720,43 +923,61 @@ def newdev(c):
 def update_local(c):
     """Atualizando pacotes"""
     log("Atualizando pacotes", yellow)
-    c.run("sudo apt -y update")
+    family = cfg.os_family
+    if family == "debian":
+        c.run("sudo apt -y update")
+    elif family in ("fedora", "rhel"):
+        c.run("sudo dnf makecache")
+    elif family == "arch":
+        # ver comentário em update_server sobre rodar -Sy antes do -Su
+        c.run("sudo pacman -Sy --noconfirm")
 
 
 @task
 def upgrade_local(c):
     """Atualizando programas"""
     log("Atualizando programas", yellow)
-    c.run("sudo apt -y upgrade")
+    family = cfg.os_family
+    if family == "debian":
+        c.run("sudo apt -y upgrade")
+    elif family in ("fedora", "rhel"):
+        c.run("sudo dnf -y upgrade")
+    elif family == "arch":
+        c.run("sudo pacman -Su --noconfirm")
 
 
 @task
 def build_local(c):
     """Instalar build-essential"""
     log("instalando build-essential gcc++", yellow)
-    for packages in _BUILD_PACKAGES:
-        c.run("sudo apt -y install {0}".format(packages))
-    c.run("sudo apt -y install terminator")
+    _install_local(c, _BUILD_PACKAGES_BY_FAMILY[cfg.os_family])
+    # terminator só é garantidamente empacotado no debian/fedora/arch
+    if cfg.os_family != "rhel":
+        _install_local(c, "terminator")
 
 
 @task
 def python_local(c):
     """Instalando todos pacotes necessários"""
     log("Instalando todos pacotes necessários", yellow)
-    c.run(
-        "sudo apt -y install python3 python3-dev python3-venv python3-pip python3-pil"
-    )
+    packages = {
+        "debian": "python3 python3-dev python3-venv python3-pip python3-pil",
+        "fedora": "python3 python3-devel python3-pip python3-pillow",
+        "rhel": "python3 python3-devel python3-pip python3-pillow",
+        "arch": "python python-pip python-pillow",
+    }[cfg.os_family]
+    _install_local(c, packages)
 
 
 @task
 def mysql_local(c):
     """Instalando MySQL"""
     log("Instalando MySQL", yellow)
-    c.run("sudo apt -y install mysql-server libmysqlclient-dev")
+    _install_local(c, _DB_PACKAGES_BY_FAMILY[cfg.os_family])
 
 
 @task
 def git_local(c):
     """Instalando git"""
     log("Instalando git", yellow)
-    c.run("sudo apt -y install git")
+    _install_local(c, "git")

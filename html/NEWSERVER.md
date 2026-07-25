@@ -1,7 +1,7 @@
 Utilizando script para Servidor
 =================
 
-<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor no ubuntu.</p>
+<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor em Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux.</p>
 
 
 Os comandos abaixo rodam de dentro da pasta `server/` deste repositório.
@@ -10,6 +10,7 @@ Alterar as configurações copiando `server/local_settings-template.py` para
 
     user = 'root'
     host = '192.168.1.111'
+    os_family = 'debian'  # ou 'fedora', 'rhel', 'arch' -- veja o README
 
 
 Configura um novo servidor instalando todos pacotes necessários:
