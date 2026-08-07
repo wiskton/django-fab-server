@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import functools
 import os
-from io import StringIO
+from io import BytesIO
 
 from fabric import Connection, task
 from jinja2 import Environment, FileSystemLoader
@@ -17,7 +17,8 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 # SERVIDOR
 user = "root"
 host = "192.168.0.1"
-chave = ""  # caminho da chave nome_arquivo.pem
+chave = ""  # caminho da chave privada, ex: "~/.ssh/id_ed25519" (nome_arquivo.pem)
+public_key = "~/.ssh/id_rsa.pub"  # chave publica usada por `fab upload-public-key`
 
 # distro do servidor remoto: "debian" (Ubuntu/Debian), "fedora", "rhel"
 # (CentOS Stream/RHEL/Rocky/Alma) ou "arch" (Arch Linux/Manjaro)
@@ -61,6 +62,7 @@ cfg = Config(
     porta="",
     nginx_sites_enable_path="/etc/nginx/sites-enabled",
     key_filename=chave,
+    public_key=public_key,
     pasta_settings="",
     db_password="",
     os_family=os_family,
@@ -124,7 +126,12 @@ def write_file(filename, destination):
 
     conn = get_connection()
     remote_tmp = "/tmp/{0}".format(os.path.basename(destination))
-    conn.put(StringIO(content), remote=remote_tmp)
+    # BytesIO (não StringIO): o SFTP do paramiko calcula o tamanho do envio
+    # com base em .tell() do arquivo em bytes -- com StringIO (texto) e
+    # conteúdo com acentos (UTF-8 multi-byte, comum nos comentários em
+    # português dos templates), a contagem de caracteres diverge da
+    # contagem de bytes e o put falha com "size mismatch in put!".
+    conn.put(BytesIO(content.encode("utf-8")), remote=remote_tmp)
     conn.sudo("test -f {0} && cp {0} {0}.bak || true".format(destination))
     conn.sudo("mv {0} {1}".format(remote_tmp, destination))
 
@@ -292,13 +299,36 @@ def _install_local(c, packages):
         )
 
 
+_PACKAGE_CHECK_BY_FAMILY = {
+    "debian": "dpkg -s {0}",
+    "fedora": "rpm -q {0}",
+    "rhel": "rpm -q {0}",
+    "arch": "pacman -Qi {0}",
+}
+
+
+def _package_installed(package):
+    """Verifica se um pacote já está instalado no servidor."""
+    check = _PACKAGE_CHECK_BY_FAMILY[cfg.os_family].format(package)
+    result = get_connection().run(check, warn=True, hide=True)
+    return result.ok
+
+
 @functools.lru_cache(maxsize=1)
+def _ensure_epel_once():
+    if cfg.os_family == "rhel":
+        get_connection().sudo("dnf -y install epel-release")
+
+
 def _ensure_epel(c):
     """Habilita o repositório EPEL, necessário em RHEL/CentOS Stream/Rocky/
     Alma para instalar supervisor, mercurial e proftpd (fedora já traz esses
-    pacotes nos repositórios padrão, sem precisar de EPEL)."""
-    if cfg.os_family == "rhel":
-        get_connection().sudo("dnf -y install epel-release")
+    pacotes nos repositórios padrão, sem precisar de EPEL).
+
+    Memoizado sem depender de `c` -- o `Context` do Fabric/Invoke não é
+    hashable, então não dá pra usar `functools.lru_cache` direto nele (ver
+    TypeError: unhashable type: 'Context')."""
+    _ensure_epel_once()
 
 
 def _mysql_exec(sql, password=None):
@@ -314,14 +344,17 @@ def _mysql_exec(sql, password=None):
     conn = get_connection()
     token = create_password(8)
     sql_path = "/tmp/.fab_{0}.sql".format(token)
-    conn.put(StringIO(sql), remote=sql_path)
+    conn.put(BytesIO(sql.encode("utf-8")), remote=sql_path)
     conn.sudo("chmod 600 {0}".format(sql_path))
 
     cnf_path = None
     defaults_flag = ""
     if password:
         cnf_path = "/tmp/.fab_{0}.cnf".format(token)
-        conn.put(StringIO("[client]\npassword={0}\n".format(password)), remote=cnf_path)
+        conn.put(
+            BytesIO("[client]\npassword={0}\n".format(password).encode("utf-8")),
+            remote=cnf_path,
+        )
         conn.sudo("chmod 600 {0}".format(cnf_path))
         defaults_flag = "--defaults-extra-file={0} ".format(cnf_path)
 
@@ -388,7 +421,8 @@ def newserver(c):
     write_file("supervisord_server.conf", supervisor_conf_path)
     supervisor_restart(c)
 
-    log("Anote a senha do banco de dados: {0}".format(cfg.db_password), green)
+    if cfg.db_password:
+        log("Anote a senha do banco de dados: {0}".format(cfg.db_password), green)
 
     log("Reiniciando a máquina", yellow)
     reboot(c)
@@ -416,7 +450,11 @@ def newaccount(c):
                 "ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.",
                 yellow,
             )
-            conn.sudo("netstat -tulpn")
+            # `ss` (iproute2) no lugar do `netstat` (net-tools) -- vem
+            # instalado por padrão em todas as distros suportadas, enquanto
+            # o pacote net-tools foi descontinuado e não vem mais instalado
+            # por padrão no Debian/Ubuntu/RHEL/Fedora recentes
+            conn.sudo("ss -tulpn")
             cfg.porta = input(
                 "Digite o número de uma porta que não está listada acima: "
             )
@@ -653,6 +691,20 @@ def python_server(c):
 @task
 def mysql_server(c):
     """Instalar MySQL no servidor"""
+    family = cfg.os_family
+    main_package = _DB_PACKAGES_BY_FAMILY[family].split()[0]
+
+    if _package_installed(main_package):
+        # já rodou antes nesse servidor -- não reinstala nem troca a senha
+        # do root (senão a senha anotada da vez anterior para de funcionar)
+        log(
+            "MySQL/MariaDB já está instalado -- pulando instalação e "
+            "senha do root (rode `fab mysql-restart` se só precisa "
+            "reiniciar o serviço)",
+            yellow,
+        )
+        return
+
     log("Instalando MySQL", yellow)
 
     if confirm("Deseja que o script gere senha automatica para o mysql?"):
@@ -662,7 +714,6 @@ def mysql_server(c):
 
     cfg.db_password = db_password
 
-    family = cfg.os_family
     conn = get_connection()
     _install(c, _DB_PACKAGES_BY_FAMILY[family])
 
@@ -730,12 +781,12 @@ def login(c):
 
 @task
 def upload_public_key(c):
-    """Faz o upload da chave ssh para o servidor"""
+    """Faz o upload da chave ssh para o servidor (precisa de uma conexão que
+    já autentique -- veja o aviso em `fab --help upload-public-key`)"""
     log("Adicionando chave publica no servidor", green)
     conn = get_connection()
-    ssh_file = "~/.ssh/id_rsa.pub"
     target_path = "~/.ssh/uploaded_key.pub"
-    conn.put(ssh_file, target_path)
+    conn.put(cfg.public_key, target_path)
     conn.run(
         "echo `cat ~/.ssh/uploaded_key.pub` >> ~/.ssh/authorized_keys && rm -f ~/.ssh/uploaded_key.pub"
     )

@@ -1,4 +1,5 @@
 import pytest
+from fabric import Connection
 
 
 def test_create_password_respects_length(server_fabfile):
@@ -65,3 +66,33 @@ def test_get_connection_is_memoized(server_fabfile):
     conn2 = server_fabfile.get_connection()
     assert conn1 is conn2
     server_fabfile.get_connection.cache_clear()
+
+
+def test_write_file_uploads_utf8_bytes_not_str(server_fabfile, monkeypatch):
+    # regressão: paramiko calcula o tamanho do put() a partir de .tell() do
+    # arquivo enviado -- com StringIO (modo texto), .tell() conta
+    # caracteres, não bytes. Os templates de server/inc/ têm comentários em
+    # português com acento (ex: "versão" em nginx_server.conf), que ocupam
+    # mais bytes que caracteres em UTF-8, e o put falhava com
+    # "OSError: size mismatch in put!". write_file() precisa mandar um
+    # BytesIO já codificado em UTF-8.
+    captured = {}
+
+    def fake_put(_self, local, remote=None, **kwargs):
+        captured["local"] = local
+
+    monkeypatch.setattr(Connection, "put", fake_put)
+    monkeypatch.setattr(Connection, "sudo", lambda _self, *a, **kw: None)
+    server_fabfile.get_connection.cache_clear()
+    server_fabfile.cfg.conta = "acme"
+    server_fabfile.cfg.dominio = "acme.com.br"
+    server_fabfile.cfg.nginx_user = "www-data"
+
+    try:
+        server_fabfile.write_file("nginx_server.conf", "/etc/nginx/nginx.conf")
+    finally:
+        server_fabfile.get_connection.cache_clear()
+
+    content = captured["local"].read()
+    assert isinstance(content, bytes)
+    assert "versão" in content.decode("utf-8")

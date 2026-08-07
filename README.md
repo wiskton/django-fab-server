@@ -15,6 +15,7 @@ um site em Django (python) ou PHP precisa: nginx, banco de dados, supervisor
 - [📁 Estrutura de pastas](#estrutura-de-pastas)
 - [✅ Requisitos](#requisitos)
 - [⚙️ Instalação](#instalação)
+- [🔑 Acesso SSH](#acesso-ssh)
 - [🐧 Distros suportadas](#distros-suportadas)
 - [📜 Comandos disponíveis](#comandos-disponíveis)
 - [🌐 Exemplo: criando um site novo](#exemplo-criando-um-site-novo)
@@ -77,6 +78,52 @@ vários projetos diferentes, basta manter um `server/local_settings.py`
 próprio (não versionado) em cada cópia/clone, apontando para o servidor
 daquele projeto. Os comandos `fab ...` abaixo devem ser rodados de dentro de
 `server/`.
+
+## 🔑 Acesso SSH
+
+**Antes de rodar `fab newserver`**, o Fabric precisa conseguir autenticar no
+servidor sozinho (sem senha) — ele usa Paramiko por baixo dos panos, que não
+sabe pedir senha interativamente. Se você ainda não tem uma chave SSH
+configurada para esse servidor, faça isso primeiro:
+
+```bash
+# 1. gerar um par de chaves (pule se já tiver uma em ~/.ssh)
+ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
+# aceite o caminho padrão e deixe SEM senha na chave (Enter, Enter) --
+# como o fab roda de forma não-interativa, uma chave com passphrase
+# ficaria pedindo senha toda hora e o comando travaria
+
+# 2. copiar a chave pública para o servidor (pede a senha do root uma
+#    última vez)
+ssh-copy-id root@SEU_IP_DO_SERVIDOR
+
+# 3. testar -- deve logar sem pedir senha
+ssh root@SEU_IP_DO_SERVIDOR
+```
+
+Sem `ssh-copy-id` na sua máquina, o equivalente manual é:
+
+```bash
+cat ~/.ssh/id_ed25519.pub | ssh root@SEU_IP_DO_SERVIDOR \
+  "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
+```
+
+Com o teste do passo 3 funcionando, o `local_settings.py` já vai autenticar
+sozinho: por padrão o Fabric/Paramiko procura chaves comuns
+(`id_rsa`, `id_ed25519`...) em `~/.ssh` automaticamente. Se você usou um
+nome de arquivo diferente do padrão, aponte para ela explicitamente na
+variável `chave`:
+
+```python
+chave = "~/.ssh/meu_projeto"  # caminho da chave PRIVADA
+```
+
+> ⚠️ **Não use `fab upload-public-key` para esse primeiro acesso** — esse
+> comando manda a chave pública *usando* a própria conexão do Fabric, ou
+> seja, ele só funciona se o servidor **já** aceitar essa conexão de algum
+> jeito (chave injetada pelo provedor na criação da VM, por exemplo). Para
+> adicionar sua chave do zero num servidor onde só existe login por senha,
+> use `ssh-copy-id` como acima.
 
 ## 🐧 Distros suportadas
 
@@ -264,6 +311,10 @@ fab nginx-restart
   menos que seja estritamente necessário — prefira manter o banco acessível
   só via `localhost`/socket e liberar acesso remoto caso a caso pelo
   firewall. (Debian/Ubuntu: `/etc/mysql/mysql.conf.d/mysqld.cnf`.)
+- `fab mysql-server` (e portanto `fab newserver`) é seguro de rodar mais de
+  uma vez: se o MySQL/MariaDB já estiver instalado, ele pula a instalação e
+  **não** gera nem troca a senha do root — assim a senha anotada da primeira
+  vez continua valendo.
 
 **Nginx**
 
@@ -320,9 +371,17 @@ docker compose run --rm fab-client deploy
 ```
 
 Os dois serviços já têm `fab` como `entrypoint` (sem precisar repetir
-`fab fab ...`) e montam o repositório (`.:/code`) e o seu `~/.ssh` (somente
-leitura) como volumes — assim `local_settings.py`, chaves SSH e edições nos
-fabfiles valem na hora, sem precisar rebuildar a imagem a cada mudança.
+`fab fab ...`) e montam o repositório (`.:/code`) e o seu `${HOME}/.ssh`
+(somente leitura) como volumes — assim `local_settings.py`, chaves SSH e
+edições nos fabfiles valem na hora, sem precisar rebuildar a imagem a cada
+mudança.
+
+> ⚠️ **`SSHException: No authentication methods available`**: veja
+> [🔑 Acesso SSH](#acesso-ssh) — geralmente falta configurar a chave (ou o
+> servidor ainda só aceita login por senha). Se já tem chave e mesmo assim
+> der esse erro só dentro do Docker, confira se `docker-compose.yml` está
+> usando `${HOME}/.ssh` no volume (não `~/.ssh` — o Compose não expande
+> til, então o mount vai silenciosamente para um caminho errado).
 
 ## 🏗️ Estrutura interna
 

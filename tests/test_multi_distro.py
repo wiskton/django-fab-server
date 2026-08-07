@@ -5,8 +5,14 @@ gerenciador de pacotes certo, sem precisar de um servidor real de cada
 distro."""
 import pytest
 from fabric import Connection
+from invoke import Context
 
 _FAMILIES = ("debian", "fedora", "rhel", "arch")
+
+
+class _FakeResult:
+    def __init__(self, ok):
+        self.ok = ok
 
 _BY_FAMILY_TABLES = (
     "_BUILD_PACKAGES_BY_FAMILY",
@@ -29,7 +35,7 @@ def _reset_os_family(server_fabfile):
         yield
     finally:
         server_fabfile.cfg.os_family = "debian"
-        server_fabfile._ensure_epel.cache_clear()
+        server_fabfile._ensure_epel_once.cache_clear()
 
 
 @pytest.mark.parametrize("table_name", _BY_FAMILY_TABLES)
@@ -101,7 +107,7 @@ def test_ensure_epel_is_noop_outside_rhel(
     server_fabfile.get_connection.cache_clear()
     server_fabfile.cfg.os_family = family
 
-    server_fabfile._ensure_epel.cache_clear()
+    server_fabfile._ensure_epel_once.cache_clear()
     server_fabfile._ensure_epel(None)
 
     assert sudo_calls == []
@@ -120,8 +126,95 @@ def test_ensure_epel_installs_epel_release_on_rhel(
     server_fabfile.get_connection.cache_clear()
     server_fabfile.cfg.os_family = "rhel"
 
-    server_fabfile._ensure_epel.cache_clear()
+    server_fabfile._ensure_epel_once.cache_clear()
     server_fabfile._ensure_epel(None)
 
     assert sudo_calls == ["dnf -y install epel-release"]
     server_fabfile.get_connection.cache_clear()
+
+
+def test_ensure_epel_accepts_unhashable_context(
+    server_fabfile, monkeypatch, _reset_os_family
+):
+    # regressão: o Context do Fabric/Invoke não é hashable (TypeError:
+    # unhashable type: 'Context' em produção, com `fab newserver` de
+    # verdade) -- _ensure_epel não pode usar lru_cache direto sobre `c`
+    sudo_calls = []
+    monkeypatch.setattr(
+        Connection,
+        "sudo",
+        lambda _self, command, *a, **kw: sudo_calls.append(command),
+    )
+    server_fabfile.get_connection.cache_clear()
+    server_fabfile.cfg.os_family = "rhel"
+    server_fabfile._ensure_epel_once.cache_clear()
+
+    server_fabfile._ensure_epel({})  # dict, assim como Context, não é hashable
+
+    assert sudo_calls == ["dnf -y install epel-release"]
+    server_fabfile.get_connection.cache_clear()
+
+
+@pytest.mark.parametrize(
+    "family,expected_check",
+    [
+        ("debian", "dpkg -s mysql-server"),
+        ("fedora", "rpm -q mariadb-server"),
+        ("rhel", "rpm -q mariadb-server"),
+        ("arch", "pacman -Qi mariadb"),
+    ],
+)
+def test_package_installed_uses_the_right_check_per_family(
+    server_fabfile, monkeypatch, _reset_os_family, family, expected_check
+):
+    run_calls = []
+
+    def fake_run(_self, command, **kwargs):
+        run_calls.append((command, kwargs))
+        return _FakeResult(ok=True)
+
+    monkeypatch.setattr(Connection, "run", fake_run)
+    server_fabfile.get_connection.cache_clear()
+    server_fabfile.cfg.os_family = family
+
+    main_package = server_fabfile._DB_PACKAGES_BY_FAMILY[family].split()[0]
+    assert server_fabfile._package_installed(main_package) is True
+
+    command, kwargs = run_calls[0]
+    assert command == expected_check
+    assert kwargs.get("warn") is True
+    assert kwargs.get("hide") is True
+    server_fabfile.get_connection.cache_clear()
+
+
+def test_mysql_server_skips_install_and_password_when_already_installed(
+    server_fabfile, monkeypatch, _reset_os_family
+):
+    # regressão: rodar `fab newserver`/`fab mysql-server` de novo num
+    # servidor que já tem o banco instalado não pode gerar/trocar a senha
+    # do root -- a senha anotada da primeira vez pararia de funcionar
+    server_fabfile.cfg.os_family = "debian"
+    server_fabfile.cfg.db_password = ""
+
+    sudo_calls = []
+    monkeypatch.setattr(
+        Connection, "sudo", lambda _self, cmd, *a, **kw: sudo_calls.append(cmd)
+    )
+    monkeypatch.setattr(
+        Connection, "run", lambda _self, cmd, **kw: _FakeResult(ok=True)
+    )
+
+    def _fail_if_asked(prompt=""):
+        raise AssertionError("não deveria pedir senha/confirmação: {0}".format(prompt))
+
+    monkeypatch.setattr("builtins.input", _fail_if_asked)
+    server_fabfile.get_connection.cache_clear()
+
+    try:
+        server_fabfile.mysql_server(Context())
+    finally:
+        server_fabfile.get_connection.cache_clear()
+        server_fabfile.cfg.db_password = ""
+
+    assert sudo_calls == []
+    assert server_fabfile.cfg.db_password == ""

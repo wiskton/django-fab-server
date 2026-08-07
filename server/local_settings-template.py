@@ -16,6 +16,10 @@ user = "root"
 host = "192.168.0.1"
 chave = ""  # caminho da chave privada ssh, ex: "~/.ssh/meu_projeto.pem"
 
+# chave publica usada por `fab upload-public-key` -- só precisa mudar se
+# você gerou a chave com um nome diferente do padrão ("ssh-keygen -t rsa")
+# public_key = "~/.ssh/id_ed25519.pub"
+
 # distro do servidor (e da maquina local, para os comandos fab *_local):
 #   "debian" -> Ubuntu, Debian
 #   "fedora" -> Fedora

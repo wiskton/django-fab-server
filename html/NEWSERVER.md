@@ -13,6 +13,19 @@ Alterar as configurações copiando `server/local_settings-template.py` para
     os_family = 'debian'  # ou 'fedora', 'rhel', 'arch' -- veja o README
 
 
+**Antes de rodar `fab newserver`**, garanta que sua chave SSH já está
+configurada e autentica no servidor sem pedir senha (o Fabric não sabe pedir
+senha sozinho). Se ainda não tem chave para esse servidor:
+
+    ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
+    ssh-copy-id root@SEU_IP_DO_SERVIDOR
+    ssh root@SEU_IP_DO_SERVIDOR   # deve logar sem pedir senha
+
+Veja a seção [🔑 Acesso SSH do README](../README.md#acesso-ssh) para mais
+detalhes (inclusive por que `fab upload-public-key` não serve para esse
+primeiro acesso).
+
+
 Configura um novo servidor instalando todos pacotes necessários:
 
     cd server

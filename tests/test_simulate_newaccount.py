@@ -40,6 +40,10 @@ class CommandRecorder:
                 local.seek(0)
                 content = local.read()
                 local.seek(pos)
+                if isinstance(content, bytes):
+                    # write_file()/_mysql_exec() usam BytesIO (ver comentário
+                    # em write_file) -- decodifica pra comparar como texto
+                    content = content.decode("utf-8")
             self.put_calls.append((remote, content))
             return None
 
