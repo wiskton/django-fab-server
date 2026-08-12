@@ -118,6 +118,35 @@ variável `chave`:
 chave = "~/.ssh/meu_projeto"  # caminho da chave PRIVADA
 ```
 
+### Deu erro de autenticação mesmo assim?
+
+Se `fab newserver`/`fab login` continuar reclamando
+(`AuthenticationException` ou `No authentication methods available`),
+rode o `ssh` de verdade com `-v` -- ele mostra exatamente quais chaves
+foram oferecidas e se o servidor aceitou ou recusou cada uma (bem mais
+informativo que o erro curto do Paramiko/Fabric):
+
+```bash
+ssh -v root@SEU_IP_DO_SERVIDOR
+```
+
+Causas mais comuns que aparecem ali:
+
+* **Chave errada sendo oferecida** — se você tem mais de uma chave em
+  `~/.ssh` (de outros projetos, por exemplo), o Paramiko pode tentar uma
+  delas antes da certa e desistir. Aponte explicitamente a chave certa em
+  `chave` no `local_settings.py` (veja acima) em vez de deixar a escolha
+  automática.
+* **`Permission denied (publickey)`** mesmo com a chave certa — confira se
+  o `ssh-copy-id` realmente terminou sem erro ("Number of key(s) added: 1"),
+  e (se tiver acesso ao console web do provedor) as permissões de
+  `~/.ssh`/`~/.ssh/authorized_keys` no servidor (precisam ser `700`/`600`,
+  donas do usuário certo).
+* **Login de root desabilitado** — alguns provedores de VPS já vêm com
+  `PermitRootLogin` restrito por padrão. Verifique
+  `grep -i permitrootlogin /etc/ssh/sshd_config` no servidor (via console
+  do provedor, se o SSH em si não estiver funcionando).
+
 > ⚠️ **Não use `fab upload-public-key` para esse primeiro acesso** — esse
 > comando manda a chave pública *usando* a própria conexão do Fabric, ou
 > seja, ele só funciona se o servidor **já** aceitar essa conexão de algum

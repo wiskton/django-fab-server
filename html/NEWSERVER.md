@@ -21,6 +21,11 @@ senha sozinho). Se ainda não tem chave para esse servidor:
     ssh-copy-id root@SEU_IP_DO_SERVIDOR
     ssh root@SEU_IP_DO_SERVIDOR   # deve logar sem pedir senha
 
+Se mesmo assim `fab newserver`/`fab login` der erro de autenticação, rode
+`ssh -v root@SEU_IP_DO_SERVIDOR` para ver o motivo real (chave errada sendo
+oferecida, permissão de `authorized_keys` no servidor, login de root
+desabilitado...).
+
 Veja a seção [🔑 Acesso SSH do README](../README.md#acesso-ssh) para mais
 detalhes (inclusive por que `fab upload-public-key` não serve para esse
 primeiro acesso).
