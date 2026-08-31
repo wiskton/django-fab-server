@@ -16,7 +16,7 @@ CURRENT_PATH = os.path.dirname(os.path.abspath(__file__))
 
 # SERVIDOR
 user = "root"
-host = "192.168.0.1"
+host = "209.145.59.193"
 chave = ""  # caminho da chave privada, ex: "~/.ssh/id_ed25519" (nome_arquivo.pem)
 public_key = "~/.ssh/id_rsa.pub"  # chave publica usada por `fab upload-public-key`
 
@@ -154,14 +154,14 @@ def _systemctl(service, action):
 _OS_FAMILIES = ("debian", "fedora", "rhel", "arch")
 
 _BUILD_PACKAGES_BY_FAMILY = {
-    "debian": "build-essential automake libxml2-dev libxslt-dev "
+    "debian": "build-essential automake gettext libxml2-dev libxslt-dev "
     "libjpeg-dev zlib1g-dev libfreetype6-dev libwebp-dev",
-    "fedora": "gcc gcc-c++ make automake libxml2-devel libxslt-devel "
+    "fedora": "gcc gcc-c++ make automake gettext libxml2-devel libxslt-devel "
     "libjpeg-turbo-devel zlib-devel freetype-devel libwebp-devel",
-    "rhel": "gcc gcc-c++ make automake libxml2-devel libxslt-devel "
+    "rhel": "gcc gcc-c++ make automake gettext libxml2-devel libxslt-devel "
     "libjpeg-turbo-devel zlib-devel freetype-devel libwebp-devel",
     # base-devel é um grupo de pacotes; libs do Arch não separam runtime/dev
-    "arch": "base-devel automake libxml2 libxslt libjpeg-turbo zlib "
+    "arch": "base-devel automake gettext libxml2 libxslt libjpeg-turbo zlib "
     "freetype2 libwebp",
 }
 
