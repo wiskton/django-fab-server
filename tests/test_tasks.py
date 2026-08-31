@@ -16,10 +16,11 @@ EXPECTED_ROOT_TASKS = {
 EXPECTED_PROJETO_TASKS = {
     "co", "collectstatic", "commit-all", "commit-push", "compass-compile",
     "compress", "config", "createdb", "createsuperuser", "cw", "deploy",
-    "gunicorn", "login", "manage", "migrate", "nginx-restart", "pull", "push",
-    "reclone", "remote-migrate-all", "remote-pull", "remote-test", "restart",
-    "revert", "server", "test", "translate", "translate-remote",
-    "update-requirements", "upload-public-key",
+    "gunicorn", "login", "manage", "migrate", "nginx-restart", "nginx-reload",
+    "pull", "push", "reclone", "remote-migrate-all", "remote-pull", "remote-test",
+    "restart", "revert", "server", "test", "translate", "translate-remote",
+    "update-requirements", "upload-public-key", "install-gettext", "show-key",
+    "fix-supervisor", "enable-ssl",
 }
 
 

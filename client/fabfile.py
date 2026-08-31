@@ -4,20 +4,16 @@ from contextlib import contextmanager
 
 from fabric import Connection, task
 
-# pode preencher aqui antes de usar, ou deixar em branco -- nesse caso o
-# fab pergunta na primeira vez que precisar (este arquivo é copiado,
-# sozinho, pra dentro do SEU projeto -- veja server/newaccount no
-# django-fab-server para os dados de conta/domínio que esse comando gerou
-# no servidor)
+# Configurações do Servidor e Repositório
+# Podem ser preenchidas aqui ou deixadas em branco (o script perguntará interativamente)
 username = ""  # nome da conta criada no servidor, ex: "meusite"
 host = ""  # IP ou domínio do servidor
-repositorio = ""  # URL git do SEU projeto, ex: "git@github.com:sua-conta/seu-projeto.git"
+repositorio = ""  # URL git do projeto, ex: "git@github.com:usuario/projeto.git"
+branch = "main"
 
 
 def _prompt_if_missing(name, prompt_text):
-    """Se a variável global `name` (username/host/repositorio) ainda estiver
-    vazia, pergunta o valor (uma vez por execução do fab) e guarda de volta
-    na variável -- assim não precisa editar o arquivo antes de usar."""
+    """Se a variável global (username/host/repositorio) ainda estiver vazia, pergunta o valor."""
     value = globals()[name]
     while not value:
         value = input(prompt_text).strip()
@@ -33,25 +29,25 @@ def _ensure_server_config():
 def _ensure_repositorio():
     _prompt_if_missing(
         "repositorio",
-        "URL git do projeto (ex: git@github.com:sua-conta/seu-projeto.git): ",
+        "URL git do projeto (ex: git@github.com:usuario/projeto.git): ",
     )
 
 
 def _prod_server():
-    return "%s@%s" % (username, host)
+    return f"{username}@{host}"
 
 
 def _project_path():
-    return "/home/%s/project/" % username
+    return f"/home/{username}/project"
 
 
 def _env_path():
-    return "/home/%s/env/bin/activate" % username
+    return f"/home/{username}/env/bin/activate"
 
 
 def confirm(question, default=True):
     suffix = "[Y/n]" if default else "[y/N]"
-    resp = input("{0} {1} ".format(question, suffix)).strip().lower()
+    resp = input(f"{question} {suffix} ").strip().lower()
     if not resp:
         return default
     return resp in ("y", "yes")
@@ -66,315 +62,347 @@ def get_connection():
 
 @contextmanager
 def remote_project():
-    """Conexão já posicionada dentro do diretório do projeto no servidor."""
+    """Conexão posicionada dentro do diretório do projeto no servidor."""
     conn = get_connection()
     with conn.cd(_project_path()):
         yield conn
 
 
 def log(message):
-    print(
-        """
-==============================================================
-%s
-==============================================================
-    """
-        % message
-    )
+    print(f"\n{'=' * 62}\n{message}\n{'=' * 62}\n")
 
 
 def _bootstrap_project(conn):
-    """Instala as dependências e prepara o projeto recém clonado (usado por
-    `config` e `reclone`)."""
-    with conn.prefix("source {0}".format(_env_path())):
-        conn.run("pip install -U pip")
-        conn.run("pip install -r project/requirements.txt")
-        conn.run("python project/manage.py migrate")
-        conn.run("python project/manage.py collectstatic --noinput")
+    """Instala dependências, executa migrações, compila traduções e coleta arquivos estáticos."""
+    with conn.cd(_project_path()):
+        conn.run(f"source {_env_path()} && pip install -U pip")
+        conn.run(f"source {_env_path()} && pip install -r requirements.txt")
+        conn.run(f"source {_env_path()} && python manage.py migrate --noinput")
+        res = conn.run(f"source {_env_path()} && python manage.py compilemessages", warn=True)
+        if res.failed:
+            log("AVISO: gettext não instalado no servidor. Para instalar, execute: fab install-gettext")
+        conn.run(f"source {_env_path()} && python manage.py collectstatic --noinput")
+
+
+@task
+def install_gettext(c):
+    """Instala o pacote gettext (msgfmt) no servidor Linux."""
+    log("Instalando gettext no servidor")
+    conn = get_connection()
+    conn.sudo("apt-get update && apt-get install -y gettext", warn=True)
+
+
+@task
+def show_key(c):
+    """Exibe ou gera a chave pública SSH do servidor para cadastrar no GitHub."""
+    conn = get_connection()
+    conn.run("mkdir -p ~/.ssh")
+    conn.run("test -f ~/.ssh/id_rsa.pub || ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
+    log("CHAVE PÚBLICA SSH DO SERVIDOR (Copie e adicione no GitHub > Deploy Keys):")
+    conn.run("cat ~/.ssh/id_rsa.pub")
 
 
 @task
 def config(c):
-    """configura o servidor pela primeira vez"""
+    """Configura o servidor pela primeira vez (chaves SSH, clone e bootstrap)."""
     conn = get_connection()
     _ensure_repositorio()
-    log("COPIAR CÓDIGO GERADO E COLOCAR NAS CHAVES DE IMPLANTAÇÃO DO PROJETO")
-    conn.run("ssh-keygen && cat ~/.ssh/id_rsa.pub")
-    input(
-        "Após copiar a chave e adicionar as chaves no repositório, clique ENTER para continuar!!!"
-    )
-    conn.run("git clone %s project" % repositorio)
+
+    log("1. GERANDO CHAVE SSH E REGISTRANDO GITHUB NO KNOWN_HOSTS")
+    conn.run("mkdir -p ~/.ssh")
+    conn.run("test -f ~/.ssh/id_rsa.pub || ssh-keygen -t rsa -b 4096 -N '' -f ~/.ssh/id_rsa")
+    conn.run("ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true")
+
+    log("CHAVE PÚBLICA SSH:")
+    conn.run("cat ~/.ssh/id_rsa.pub")
+    input("\n➡ Copie a chave acima, adicione no GitHub > Settings > Deploy Keys > Add deploy key\nDepois tecle ENTER aqui para continuar...")
+
+    log("2. CLONANDO REPOSITÓRIO")
+    conn.run(f"test -d {_project_path()} || git clone {repositorio} {_project_path()}")
+
+    log("3. PREPARANDO AMBIENTE E BANCO DE DADOS")
     _bootstrap_project(conn)
-    log(
-        "RODAR OS DOIS COMANDOS NO SERVIDOR PARA TESTAR SE TEM ALGUM ERRO NO PROJETO! \npython project/manage.py runserver 8060 \ngunicorn {0}.wsgi:application".format(
-            username
-        )
-    )
-    login(c)
-    log("Executar agora o comando: fab deploy")
+    log("Configuração inicial concluída! Execute: fab deploy")
 
 
 @task
 def reclone(c):
-    """apaga o projeto no servidor e clona de novo (use se o `config`
-    inicial rodou com `repositorio` errado)"""
+    """Apaga a pasta do projeto no servidor e clona novamente a partir do zero."""
     conn = get_connection()
     _ensure_repositorio()
-    project_path = _project_path()
 
-    if not confirm(
-        "Isso vai APAGAR {0} no servidor e clonar de novo a partir de "
-        "{1}. Continuar?".format(project_path, repositorio),
-        default=False,
-    ):
-        log("Cancelado")
+    log("1. REGISTRANDO GITHUB NO KNOWN_HOSTS")
+    conn.run("mkdir -p ~/.ssh")
+    conn.run("ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true")
+
+    if not confirm(f"ATENÇÃO: Deseja apagar {_project_path()} no servidor e clonar de novo?", default=False):
+        log("Operação cancelada.")
         return
 
-    log("Apagando projeto atual e clonando {0}".format(repositorio))
-    conn.run("rm -rf {0}".format(project_path))
-    conn.run("git clone {0} {1}".format(repositorio, project_path))
-    _bootstrap_project(conn)
+    log("2. CLONANDO NOVAMENTE O REPOSITÓRIO")
+    conn.run(f"rm -rf {_project_path()}")
+    conn.run(f"git clone {repositorio} {_project_path()}")
 
+    log("3. PREPARANDO AMBIENTE E BANCO DE DADOS")
+    _bootstrap_project(conn)
     restart(c)
     nginx_restart(c)
-    log("Projeto reclonado e serviços reiniciados")
+    log("✔ Projeto reclonado e configurado com sucesso!")
 
 
 @task
 def deploy(c):
-    """faz o deploy da aplicação no servidor"""
+    """Executa o ciclo completo de deploy em produção."""
     log("Iniciando deploy da aplicação")
     pull(c)
     push(c)
     remote_pull(c)
-    collectstatic(c)
+    update_requirements(c)
     remote_migrate_all(c)
+    translate_remote(c)
+    collectstatic(c)
     restart(c)
 
 
 @task
 def server(c):
-    """inicia o servidor de desenvolvimento local"""
+    """Inicia o servidor de desenvolvimento local na porta 8000."""
     log("Iniciando servidor de desenvolvimento do Django")
     c.run("python manage.py runserver 0.0.0.0:8000")
 
 
 @task
 def restart(c):
-    """reiniciando aplicacao"""
-    log("reiniciando aplicação")
+    """Reinicia o processo da aplicação gerenciado pelo Supervisor."""
+    log("Reiniciando aplicação no Supervisor")
     conn = get_connection()
-    conn.run("supervisorctl stop %s" % username)
-    conn.run("supervisorctl start %s" % username)
+    conn.run(f"supervisorctl restart {username}")
+
+
+@task
+def fix_supervisor(c):
+    """Atualiza o supervisor.ini com chdir, pythonpath e reinicia o Supervisor."""
+    log(f"Atualizando /home/{username}/supervisor.ini no servidor")
+    conn = get_connection()
+    ini_content = f"""[program:{username}]
+command=/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:8002 config.wsgi:application
+directory=/home/{username}/project
+user={username}
+autostart=true
+autorestart=true
+redirect_stderr=true
+environment=PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
+"""
+    conn.run(f"cat << 'EOF' > /home/{username}/supervisor.ini\n{ini_content}\nEOF")
+    conn.sudo("supervisorctl reread", warn=True)
+    conn.sudo("supervisorctl update", warn=True)
+    conn.run(f"supervisorctl restart {username}")
+    conn.run(f"supervisorctl status {username}")
+    log("✔ Supervisor atualizado e aplicação iniciada com sucesso!")
 
 
 @task
 def nginx_restart(c):
-    """restart nginx no servidor -- por padrão a conta criada por
-    `fab newaccount` (server/) não tem sudo, então isso só funciona se
-    você liberar (veja o aviso caso falhe)"""
+    """Reinicia o Nginx no servidor."""
     conn = get_connection()
     result = conn.sudo("systemctl restart nginx", warn=True, hide=True)
     if result.failed:
-        log(
-            "Não consegui reiniciar o nginx (esta conta não tem sudo). "
-            "Reinicie manualmente como root no servidor (`fab nginx-restart` "
-            "do server/fabfile.py), ou libere sudo sem senha só pra isso "
-            "nesta conta com `sudo visudo`:\n\n"
-            "    {0} ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx".format(
-                username
-            )
-        )
+        log("Não foi possível reiniciar o nginx diretamente (sem permissão sudo sem senha).")
     else:
-        log("nginx reiniciado")
+        log("Nginx reiniciado com sucesso.")
+
+
+@task
+def nginx_reload(c):
+    """Recarrega as configurações do Nginx."""
+    log("Recarregando Nginx")
+    conn = get_connection()
+    conn.sudo("systemctl reload nginx", warn=True)
+
+
+@task
+def enable_ssl(c, dominio=None):
+    """Instala o Certbot e ativa SSL (HTTPS) gratuito da Let's Encrypt para o domínio."""
+    if not dominio:
+        dominio = input("Digite o domínio para ativar o SSL (ex: meudominio.com): ").strip()
+    log(f"Ativando SSL Let's Encrypt para {dominio}")
+    conn = get_connection()
+    conn.sudo("apt-get update && apt-get install -y certbot python3-certbot-nginx", warn=True)
+    conn.sudo(
+        f"certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {dominio} -d www.{dominio} -d static.{dominio} -d media.{dominio}"
+    )
+    conn.sudo("systemctl reload nginx", warn=True)
+    log(f"✔ SSL ativado com sucesso para https://{dominio}!")
 
 
 @task
 def gunicorn(c):
-    """inicia o servidor de desenvolvimento local usando gunicorn"""
-    log("Iniciando servidor de desenvolvimento do Django com gunicorn")
-    c.run("gunicorn app.wsgi:application -w 10 -b 0.0.0.0:8000")
+    """Inicia o servidor de desenvolvimento local usando gunicorn."""
+    log("Iniciando servidor de desenvolvimento local com gunicorn")
+    c.run("gunicorn config.wsgi:application -w 4 -b 0.0.0.0:8000")
 
 
 @task
 def co(c):
-    """commit local"""
+    """Executa commit interativo local."""
     c.run("git commit -a")
 
 
 @task
 def commit_all(c):
-    """commit local"""
+    """Adiciona todos os arquivos e faz commit local."""
     c.run("git add .")
     c.run("git commit -a")
 
 
 @task
 def push(c):
-    """git push local"""
-    log("Enviando alterações")
-    c.run("git push origin master")
+    """Envia commits locais para o repositório remoto."""
+    log("Enviando alterações locais para o GitHub")
+    c.run(f"git push origin {branch}")
 
 
 @task
 def pull(c):
-    """git pull local"""
+    """Atualiza a cópia local a partir do repositório remoto."""
     log("Atualizando cópia local")
-    c.run("git pull origin master")
+    c.run(f"git pull origin {branch}")
 
 
 @task
 def commit_push(c, message=None):
-    """commit e push local"""
-    if message:
-        co(c)
-        pull(c)
-        push(c)
+    """Faz commit e push das alterações locais."""
+    commit_all(c)
+    pull(c)
+    push(c)
 
 
 @task
 def remote_pull(c):
-    """git pull remoto"""
-    log("Atualizando aplicação no servidor")
+    """Atualiza a aplicação no servidor via git pull."""
+    log("Atualizando código no servidor")
     with remote_project() as conn:
-        conn.run("git pull origin master")
+        conn.run(f"git pull origin {branch}")
 
 
 @task
 def cw(c):
-    """inicia o compass local no modo watch"""
-    c.run("compass watch config/static")
+    """Inicia o compass local no modo watch."""
+    c.run("compass watch static")
 
 
 @task
 def compass_compile(c):
-    """compila o compass remoto"""
-    log("Compilando arquivos SASS")
-    with remote_project() as conn:
-        conn.run("compass compile -e production config/static")
+    """Compila o compass local."""
+    c.run("compass compile static")
 
 
 @task
-def manage(c, cmd=None):
-    """executa comandos no manage.py remoto"""
-    if cmd:
-        conn = get_connection()
-        conn.run("source {0}; python manage.py {1}".format(_env_path(), cmd))
+def compress(c):
+    """Comprime arquivos estáticos localmente."""
+    c.run("python manage.py compress")
+
+
+@task
+def manage(c, cmd=""):
+    """Executa um comando manage.py no servidor remoto."""
+    if not cmd:
+        cmd = input("Digite o comando para o manage.py (ex: migrate, check, dbshell): ").strip()
+    with remote_project() as conn:
+        conn.run(f"source {_env_path()} && python manage.py {cmd}", pty=True)
+
+
+@task
+def migrate(c):
+    """Executa migrações do banco de dados no servidor."""
+    log("Executando migrações no banco de dados")
+    manage(c, "migrate --noinput")
+
+
+@task
+def createdb(c):
+    """Sincroniza o banco de dados e executa migrações iniciais."""
+    log("Criando e sincronizando banco de dados")
+    manage(c, "migrate --noinput")
 
 
 @task
 def collectstatic(c):
-    """collectstatic remoto"""
+    """Coleta e compacta arquivos estáticos no servidor."""
     log("Coletando arquivos estáticos")
-    with remote_project():
-        manage(c, "collectstatic --noinput --ignore scss --ignore *.rb")
+    manage(c, "collectstatic --noinput")
 
 
 @task
 def remote_migrate_all(c):
-    """migrate remoto"""
-    log("Executando migração remota do banco de dados")
+    """Executa todas as migrações no servidor remoto."""
+    log("Executando migrações em todas as aplicações")
+    manage(c, "migrate --noinput")
+
+
+@task
+def translate(c):
+    """Gera arquivos de tradução (.po) localmente."""
+    c.run("python manage.py makemessages --all")
+
+
+@task
+def translate_remote(c):
+    """Compila os arquivos de tradução (.mo) no servidor."""
+    log("Compilando arquivos de tradução no servidor")
+    conn = get_connection()
     with remote_project():
-        manage(c, "migrate")
+        conn.run(f"source {_env_path()} && python manage.py compilemessages", warn=True)
 
 
 @task
 def test(c):
-    """test local"""
-    log("Executando teste")
+    """Executa testes locais."""
     c.run("python manage.py test")
 
 
 @task
 def remote_test(c):
-    """test remoto"""
-    log("Executando teste remoto")
-    with remote_project():
-        manage(c, "test")
-
-
-@task
-def migrate(c):
-    """migrate local"""
-    log("Executando migração do banco de dados")
-    c.run("python manage.py migrate")
-
-
-@task
-def compress(c):
-    """compress remoto"""
-    log("Compactando arquivos JavaScript e CSS")
-    with remote_project():
-        manage(c, "compress")
-
-
-@task
-def createsuperuser(c):
-    """createsuperuser remoto"""
-    log("Criando novo usuário no admin")
-    with remote_project():
-        manage(c, "createsuperuser")
-
-
-@task
-def createdb(c):
-    """CREATE DATABASE"""
-    _ensure_server_config()
-    log("Criando novo banco")
-    c.run('mysql -u root -p --execute="CREATE DATABASE {0}"'.format(username))
+    """Executa os testes unitários no servidor remoto."""
+    log("Executando testes no servidor")
+    manage(c, "test")
 
 
 @task
 def revert(c):
-    """Revert git via reset --hard @{1}"""
-    log("Revertendo aplicação para o ultimo commit")
+    """Reverte o último commit na cópia local."""
+    c.run("git reset --hard HEAD~1")
+
+
+@task
+def createsuperuser(c):
+    """Cria um superusuário no servidor remoto."""
+    log("Criando superusuário no servidor")
     with remote_project() as conn:
-        conn.run("git reset --hard @{1}")
+        conn.run(f"source {_env_path()} && python manage.py createsuperuser", pty=True)
 
 
 @task
 def update_requirements(c):
-    """instala as dependencias no servidor"""
-    pull(c)
-    push(c)
-    remote_pull(c)
+    """Atualiza as dependências do requirements.txt no servidor."""
+    log("Atualizando dependências do Python no servidor")
     with remote_project() as conn:
-        conn.run("source {0}; pip install -r requirements.txt".format(_env_path()))
+        conn.run(f"source {_env_path()} && pip install -r requirements.txt")
 
 
 @task
-def translate(c):
-    """atualiza os arquivos de tradução e compila"""
-    log("Atualizando traduções en, es")
-    c.run(
-        "django-admin makemessages --locale=en --ignore=templates/admin --ignore=config/settings.py"
-    )
-    c.run("django-admin compilemessages")
-
-
-@task
-def translate_remote(c):
-    """compila tradução no servidor"""
-    log("compilando tradução no servidor")
-    with remote_project() as conn:
-        conn.run("source {0}; django-admin compilemessages".format(_env_path()))
-
-
-@task
-def upload_public_key(c):
-    """faz o upload da chave ssh para o servidor"""
-    log("Adicionando chave publica no servidor")
+def upload_public_key(c, key_file="~/.ssh/id_rsa.pub"):
+    """Envia sua chave SSH pública para o servidor remoto."""
+    log("Enviando chave pública SSH para o servidor")
     conn = get_connection()
-    ssh_file = "~/.ssh/id_rsa.pub"
-    target_path = "~/.ssh/uploaded_key.pub"
-    conn.put(ssh_file, target_path)
-    conn.run(
-        "echo `cat ~/.ssh/uploaded_key.pub` >> ~/.ssh/authorized_keys && rm -f ~/.ssh/uploaded_key.pub"
-    )
+    conn.put(key_file, "/tmp/uploaded_key.pub")
+    conn.run("mkdir -p ~/.ssh && cat /tmp/uploaded_key.pub >> ~/.ssh/authorized_keys && rm -f /tmp/uploaded_key.pub")
+    conn.run("chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys")
+    log("✔ Chave SSH autorizada com sucesso!")
 
 
 @task
 def login(c):
-    """acessa o servidor"""
+    """Abre uma sessão SSH interativa no servidor dedicado."""
     _ensure_server_config()
-    c.run("ssh %s" % _prod_server())
+    c.run(f"ssh {username}@{host}", pty=True)
