@@ -1041,3 +1041,31 @@ def git_local(c):
     """Instalando git"""
     log("Instalando git", yellow)
     _install_local(c, "git")
+
+
+@task
+def install_ssl(c, dominio=None):
+    """Instala Certbot e ativa Certificado SSL gratuito (Let's Encrypt) no Nginx"""
+    log("Instalando e ativando Certificado SSL Let's Encrypt", green)
+    conn = get_connection()
+    family = cfg.os_family
+
+    if family == "debian":
+        conn.sudo("apt-get update && apt-get install -y certbot python3-certbot-nginx")
+    elif family in ("fedora", "rhel"):
+        _ensure_epel(c)
+        conn.sudo("dnf install -y certbot python3-certbot-nginx")
+    elif family == "arch":
+        conn.sudo("pacman -Sy --noconfirm certbot certbot-nginx")
+
+    if not dominio:
+        dominio = input("Digite o domínio para ativar o SSL (ex: meudominio.com): ").strip()
+
+    conn.sudo(
+        "certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {0} -d www.{0}".format(
+            dominio
+        )
+    )
+    conn.sudo("systemctl reload nginx")
+    log("✔ SSL ativado com sucesso para https://{0}".format(dominio), green)
+
