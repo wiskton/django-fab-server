@@ -244,24 +244,28 @@ _FTP_BY_FAMILY = {
         "template": "proftpd.conf",
         "destination": "/etc/proftpd/proftpd.conf",
         "service": "proftpd",
+        "group": "nogroup",
     },
     "fedora": {
         "package": "proftpd",
         "template": "proftpd.conf",
         "destination": "/etc/proftpd/proftpd.conf",
         "service": "proftpd",
+        "group": "nobody",
     },
     "rhel": {
         "package": "proftpd",
         "template": "proftpd.conf",
         "destination": "/etc/proftpd/proftpd.conf",
         "service": "proftpd",
+        "group": "nobody",
     },
     "arch": {
         "package": "vsftpd",
         "template": "vsftpd.conf",
         "destination": "/etc/vsftpd.conf",
         "service": "vsftpd",
+        "group": "nobody",
     },
 }
 
@@ -411,6 +415,10 @@ def newserver(c):
 
     # ftp (proftpd, ou vsftpd no Arch)
     ftp = _FTP_BY_FAMILY[cfg.os_family]
+    conn = get_connection()
+    conn.sudo('grep -q $(hostname) /etc/hosts || echo "127.0.0.1 $(hostname)" >> /etc/hosts')
+    conn.sudo("mkdir -p /var/log/proftpd /run/proftpd /etc/proftpd/conf.d")
+    cfg.ftp_group = ftp.get("group", "nogroup")
     print(yellow("{0} - Alterando arquivo {1}".format(ftp["package"], ftp["destination"])))
     write_file(ftp["template"], ftp["destination"])
     proftpd_restart(c)
