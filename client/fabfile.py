@@ -221,17 +221,38 @@ def nginx_reload(c):
 
 
 @task
-def enable_ssl(c, dominio=None):
+def enable_ssl(c, dominio=None, root_user="root"):
     """Instala o Certbot e ativa SSL (HTTPS) gratuito da Let's Encrypt para o domínio."""
+    import socket
+
     if not dominio:
-        dominio = input("Digite o domínio para ativar o SSL (ex: meudominio.com): ").strip()
+        dominio = input("Digite o domínio para ativar o SSL (ex: meudominio.com ou futebol.meudominio.com): ").strip()
+
     log(f"Ativando SSL Let's Encrypt para {dominio}")
-    conn = get_connection()
-    conn.sudo("apt-get update && apt-get install -y certbot python3-certbot-nginx", warn=True)
-    conn.sudo(
-        f"certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email -d {dominio} -d www.{dominio} -d static.{dominio} -d media.{dominio}"
+
+    # Valida quais subdomínios realmente respondem no DNS antes de chamar o Certbot
+    candidatos = [dominio, f"www.{dominio}", f"static.{dominio}", f"media.{dominio}"]
+    dominios_validos = []
+    for d in candidatos:
+        try:
+            socket.gethostbyname(d)
+            dominios_validos.append(d)
+        except socket.error:
+            pass
+
+    if not dominios_validos:
+        dominios_validos = [dominio]
+
+    d_flags = " ".join([f"-d {d}" for d in dominios_validos])
+    log(f"Domínios validados no DNS: {', '.join(dominios_validos)}")
+
+    # Conecta como root para operações administrativas
+    root_conn = Connection(host=host, user=root_user)
+    root_conn.run("apt-get update && apt-get install -y certbot python3-certbot-nginx", warn=True)
+    root_conn.run(
+        f"certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email --expand {d_flags}"
     )
-    conn.sudo("systemctl reload nginx", warn=True)
+    root_conn.run("systemctl reload nginx", warn=True)
     log(f"✔ SSL ativado com sucesso para https://{dominio}!")
 
 
