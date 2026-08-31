@@ -513,6 +513,7 @@ def newaccount(c):
 
     # da permissao para o usuario no diretorio
     conn.sudo("chown -R {0}:{0} /home/{0}".format(cfg.conta))
+    conn.sudo("chmod 755 /home/{0}".format(cfg.conta))
 
     nginx_restart(c)
     supervisor_restart(c)
