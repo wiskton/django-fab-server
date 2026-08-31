@@ -6,9 +6,7 @@ Suporta 🐧 **Ubuntu · Debian · Fedora · CentOS Stream/RHEL · Arch Linux**
 
 ## 🧭 Como funciona
 
-É um `fabfile.py` que acessa o servidor via SSH e instala/configura tudo que
-um site em Django (python) ou PHP precisa: nginx, banco de dados, supervisor
-(gunicorn) ou php-fpm, FTP.
+É um conjunto de automações em `fabfile.py` que acessa o servidor via SSH e instala/configura tudo que um site em Django (Python) ou PHP precisa: Nginx, banco de dados (MySQL/MariaDB), Supervisor (Gunicorn) ou php-fpm, FTP (ProFTPD/vsftpd), compilação de traduções (gettext) e certificados SSL gratuitos (Let's Encrypt / Certbot).
 
 ## 📋 Índice
 
@@ -17,7 +15,8 @@ um site em Django (python) ou PHP precisa: nginx, banco de dados, supervisor
 - [⚙️ Instalação](#instalação)
 - [🔑 Acesso SSH](#acesso-ssh)
 - [🐧 Distros suportadas](#distros-suportadas)
-- [📜 Comandos disponíveis](#comandos-disponíveis)
+- [📜 Comandos de Provisionamento (`server/`)](#comandos-de-provisionamento-server)
+- [🚀 Comandos de Deploy do Cliente (`client/`)](#comandos-de-deploy-do-cliente-client)
 - [🌐 Exemplo: criando um site novo](#exemplo-criando-um-site-novo)
 - [🔒 Segurança](#segurança)
 - [🧪 Testes](#testes)
@@ -28,410 +27,181 @@ um site em Django (python) ou PHP precisa: nginx, banco de dados, supervisor
 
 | Pasta         | O que tem |
 |---------------|-----------|
-| `server/`     | `fabfile.py` que **provisiona** o servidor (`newserver`, `newaccount`, `nginx-restart`...) |
-| `server/inc/` | templates (nginx, supervisor, proftpd/vsftpd) usados pelo fabfile acima |
-| `client/`     | `fabfile.py` **"cliente"**: copie sozinho para dentro do SEU projeto Django/PHP para fazer deploy (`fab deploy`, `fab config`...) |
-| `html/`       | documentação de uso ([NEWDEV.md](html/NEWDEV.md), [NEWSERVER.md](html/NEWSERVER.md)) |
-| `tests/`      | testes automatizados (pytest) dos dois fabfiles |
+| `server/`     | `fabfile.py` que **provisiona** o servidor do zero (`newserver`, `newaccount`, `install-ssl`, `nginx-restart`...) |
+| `server/inc/` | templates Jinja2 (Nginx, Supervisor, ProFTPD/vsftpd) usados pelo provisionamento |
+| `client/`     | `fabfile.py` **"cliente"**: copie sozinho para dentro do SEU projeto Django/PHP para gerenciar deploy (`fab deploy`, `fab enable-ssl`, `fab config`...) |
+| `html/`       | documentação detalhada ([NEWDEV.md](html/NEWDEV.md), [NEWSERVER.md](html/NEWSERVER.md)) |
+| `tests/`      | testes automatizados (pytest) com cobertura 100% dos comandos e templates |
 
-> `server/` e `client/` são independentes — `client/fabfile.py` não importa
-> nada de `server/`, porque ele é feito para ser copiado, sozinho, para
-> dentro de outro repositório (o do seu projeto Django/PHP).
+> `server/` e `client/` são independentes — `client/fabfile.py` não importa nada de `server/`, sendo feito para ser copiado, sozinho, para dentro de outro repositório.
 
 ## ✅ Requisitos
 
 - Servidor Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux
 - Python 3.10+
-- pip
-- `Fabric==3.2.3`
-- `Jinja2==3.1.6`
+- `Fabric>=3.2.0`
+- `Jinja2>=3.1.0`
 
 ## ⚙️ Instalação
 
 ```bash
-# 1. clonar o projeto
-git clone git@github.com:willemallan/django-fab-server.git
+# 1. Clonar o repositório
+git clone git@github.com:wiskton/django-fab-server.git
 cd django-fab-server
 
-# 2. (debian/ubuntu) garantir pip + venv
-sudo apt install python3-pip python3-venv
-
-# 3. criar e ativar um ambiente virtual
+# 2. Criar e ativar ambiente virtual
 python3 -m venv .venv
 source .venv/bin/activate
 
-# 4. instalar as dependências
+# 3. Instalar dependências
 pip install -r requirements.txt
 ```
 
-Os comandos de provisionamento ficam em `server/`. Aponte o fab para o
-servidor do seu projeto copiando o template e editando `user`, `host` e
-`chave` (esse arquivo é seu, local, e **nunca é commitado**):
+Para provisionar servidores, configure o arquivo local (nunca versionado):
 
 ```bash
 cd server
 cp local_settings-template.py local_settings.py
 ```
 
-Como esse repositório pode ser reaproveitado para provisionar servidores de
-vários projetos diferentes, basta manter um `server/local_settings.py`
-próprio (não versionado) em cada cópia/clone, apontando para o servidor
-daquele projeto. Os comandos `fab ...` abaixo devem ser rodados de dentro de
-`server/`.
+Edite `server/local_settings.py` com o IP (`host`), usuário (`user = "root"`) e caminho da chave privada (`chave`).
 
 ## 🔑 Acesso SSH
 
-**Antes de rodar `fab newserver`**, o Fabric precisa conseguir autenticar no
-servidor sozinho (sem senha) — ele usa Paramiko por baixo dos panos, que não
-sabe pedir senha interativamente. Se você ainda não tem uma chave SSH
-configurada para esse servidor, faça isso primeiro:
+Antes de rodar `fab newserver`, configure o acesso sem senha via chave SSH:
 
 ```bash
-# 1. gerar um par de chaves (pule se já tiver uma em ~/.ssh)
+# 1. Gerar chave SSH (se ainda não possuir)
 ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
-# aceite o caminho padrão e deixe SEM senha na chave (Enter, Enter) --
-# como o fab roda de forma não-interativa, uma chave com passphrase
-# ficaria pedindo senha toda hora e o comando travaria
 
-# 2. copiar a chave pública para o servidor (pede a senha do root uma
-#    última vez)
+# 2. Copiar a chave pública para o servidor
 ssh-copy-id root@SEU_IP_DO_SERVIDOR
 
-# 3. testar -- deve logar sem pedir senha
+# 3. Testar a conexão
 ssh root@SEU_IP_DO_SERVIDOR
 ```
 
-Sem `ssh-copy-id` na sua máquina, o equivalente manual é:
-
-```bash
-cat ~/.ssh/id_ed25519.pub | ssh root@SEU_IP_DO_SERVIDOR \
-  "mkdir -p ~/.ssh && cat >> ~/.ssh/authorized_keys"
-```
-
-Com o teste do passo 3 funcionando, o `local_settings.py` já vai autenticar
-sozinho: por padrão o Fabric/Paramiko procura chaves comuns
-(`id_rsa`, `id_ed25519`...) em `~/.ssh` automaticamente. Se você usou um
-nome de arquivo diferente do padrão, aponte para ela explicitamente na
-variável `chave`:
-
-```python
-chave = "~/.ssh/meu_projeto"  # caminho da chave PRIVADA
-```
-
-### Deu erro de autenticação mesmo assim?
-
-Se `fab newserver`/`fab login` continuar reclamando
-(`AuthenticationException` ou `No authentication methods available`),
-rode o `ssh` de verdade com `-v` -- ele mostra exatamente quais chaves
-foram oferecidas e se o servidor aceitou ou recusou cada uma (bem mais
-informativo que o erro curto do Paramiko/Fabric):
-
-```bash
-ssh -v root@SEU_IP_DO_SERVIDOR
-```
-
-Causas mais comuns que aparecem ali:
-
-* **Chave errada sendo oferecida** — se você tem mais de uma chave em
-  `~/.ssh` (de outros projetos, por exemplo), o Paramiko pode tentar uma
-  delas antes da certa e desistir. Aponte explicitamente a chave certa em
-  `chave` no `local_settings.py` (veja acima) em vez de deixar a escolha
-  automática.
-* **`Permission denied (publickey)`** mesmo com a chave certa — confira se
-  o `ssh-copy-id` realmente terminou sem erro ("Number of key(s) added: 1"),
-  e (se tiver acesso ao console web do provedor) as permissões de
-  `~/.ssh`/`~/.ssh/authorized_keys` no servidor (precisam ser `700`/`600`,
-  donas do usuário certo).
-* **Login de root desabilitado** — alguns provedores de VPS já vêm com
-  `PermitRootLogin` restrito por padrão. Verifique
-  `grep -i permitrootlogin /etc/ssh/sshd_config` no servidor (via console
-  do provedor, se o SSH em si não estiver funcionando).
-
-> ⚠️ **Não use `fab upload-public-key` para esse primeiro acesso** — esse
-> comando manda a chave pública *usando* a própria conexão do Fabric, ou
-> seja, ele só funciona se o servidor **já** aceitar essa conexão de algum
-> jeito (chave injetada pelo provedor na criação da VM, por exemplo). Para
-> adicionar sua chave do zero num servidor onde só existe login por senha,
-> use `ssh-copy-id` como acima.
-
 ## 🐧 Distros suportadas
 
-`local_settings.py` também define a distro do servidor em `os_family`, usada
-para escolher o gerenciador de pacotes certo:
+Defina a distro do servidor na variável `os_family` do `local_settings.py`:
 
 ```python
-os_family = "debian"  # "debian" (Ubuntu/Debian), "fedora",
-                       # "rhel" (CentOS Stream/RHEL/Rocky/Alma) ou "arch"
+os_family = "debian"  # "debian" (Ubuntu/Debian), "fedora", "rhel" ou "arch"
 ```
 
-| `os_family` | Distros              | Gerenciador | Banco de dados | FTP |
-|-------------|----------------------|:-----------:|:---------------:|:---:|
-| `debian`    | Ubuntu, Debian       | `apt`       | MySQL           | proftpd |
-| `fedora`    | Fedora               | `dnf`       | MariaDB         | proftpd |
-| `rhel`      | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd |
-| `arch`      | Arch Linux, Manjaro  | `pacman`    | MariaDB         | **vsftpd** |
+| `os_family` | Distros | Gerenciador | Banco de Dados | FTP | SSL / Certbot |
+|---|---|:---:|:---:|:---:|:---:|
+| `debian` | Ubuntu, Debian | `apt` | MySQL | proftpd | `certbot python3-certbot-nginx` |
+| `fedora` | Fedora | `dnf` | MariaDB | proftpd | `certbot python3-certbot-nginx` |
+| `rhel` | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd | `certbot python3-certbot-nginx` |
+| `arch` | Arch Linux, Manjaro | `pacman` | MariaDB | **vsftpd** | `certbot certbot-nginx` |
 
-⚠️ **Diferenças que valem a pena conhecer** (ver tabelas `_..._BY_FAMILY` em
-`server/fabfile.py`):
+## 📜 Comandos de Provisionamento (`server/`)
 
-- **MariaDB fora do Debian/Ubuntu** — os repositórios oficiais de
-  Fedora/RHEL/Arch não empacotam o MySQL da Oracle. No Arch o `fabfile`
-  também inicializa o datadir (`mariadb-install-db`) automaticamente antes
-  do primeiro start.
-- **vsftpd no Arch** — `proftpd` não tem pacote oficial lá (só via AUR), então
-  `fab newserver` instala e configura `vsftpd` em vez de proftpd nesse caso.
-- **PHP no CentOS Stream/RHEL** — usa a versão padrão do `php-fpm` do
-  AppStream (sem habilitar o repositório Remi), que pode ser mais antiga que
-  o PHP 8.3 usado em Ubuntu/Debian/Fedora/Arch.
-
-## 📜 Comandos disponíveis
+Execute dentro da pasta `server/`:
 
 ```bash
 cd server
 fab --list
 ```
 
-> O Fabric 3.x usa nomes com hífen no lugar de underscore (`newaccount` vira
-> `newaccount`, mas `mysql_restart` vira `mysql-restart`, por exemplo).
-
-| Categoria | Comandos |
-|-----------|----------|
-| 🖥️ **Servidor (setup completo)** | `newserver` · `newaccount` · `delaccount` · `listaccount` |
-| 📦 **Pacotes** | `update-server` · `upgrade-server` · `build-server` · `python-server` · `mysql-server` · `git-server` · `others-server` · `aptget` |
-| 🗄️ **MySQL/MariaDB** | `newbase` · `dropbase` · `mysql-start` · `mysql-stop` · `mysql-restart` |
+| Categoria | Comandos Principais |
+|---|---|
+| 🖥️ **Servidor** | `newserver` (setup completo do servidor do zero) · `newaccount` · `delaccount` · `listaccount` |
+| 🔒 **SSL / HTTPS** | `install-ssl` (instala Certbot e ativa certificado Let's Encrypt no Nginx) |
+| 📦 **Pacotes** | `build-server` (inclui `gettext`/`msgfmt`) · `python-server` · `mysql-server` · `git-server` · `others-server` |
+| 🗄️ **Banco de Dados** | `newbase` · `dropbase` · `mysql-start` · `mysql-stop` · `mysql-restart` |
 | 🌐 **Nginx** | `nginx-start` · `nginx-stop` · `nginx-restart` · `nginx-reload` |
-| 🧩 **Supervisor / app** | `supervisor-start` · `supervisor-stop` · `supervisor-restart` · `start-server` · `stop-server` · `restart-server` |
-| 📁 **FTP** | `proftpd-restart` (vsftpd no Arch) |
-| 👤 **Usuários / acesso** | `adduser` · `userdel` · `login` · `upload-public-key` |
-| 💻 **Máquina local** | `newdev` · `newproject` · `update-local` · `upgrade-local` · `build-local` · `python-local` · `mysql-local` · `git-local` |
-| 🔁 **Atalhos** | `restart` (reinicia nginx + supervisor) · `reboot` |
+| 🧩 **Supervisor** | `supervisor-start` · `supervisor-stop` · `supervisor-restart` · `start-server` · `stop-server` · `restart-server` |
+| 📁 **FTP** | `proftpd-restart` (ou `vsftpd` no Arch) |
+| 👤 **Acesso** | `adduser` · `userdel` · `login` · `upload-public-key` |
+| 🔁 **Sistema** | `restart` · `reboot` |
 
-<details>
-<summary>Ver descrição completa de cada comando</summary>
+---
 
-    adduser              Criar um usuário no servidor
-    aptget               Instala um pacote no servidor (apt/dnf/pacman conforme os_family)
-    build-local          Instalar build-essential
-    build-server         Instalar build-essential e outros pacotes importantes no servidor
-    delaccount           Deletar conta no servidor
-    dropbase             Deletar banco de dados no servidor
-    git-local            Instalando git
-    git-server           Instalar git no servidor
-    listaccount          Lista usuários do servidor
-    login                Acessa o servidor
-    mysql-local          Instalando MySQL
-    mysql-restart        Restart mysql no servidor
-    mysql-server         Instalar MySQL no servidor
-    mysql-start          start mysql no servidor
-    mysql-stop           stop mysql no servidor
-    newaccount           Criar uma nova conta do usuário no servidor
-    newbase              Criar banco de dados e usuário no servidor
-    newdev               Configura uma maquina local (conforme os_family) para trabalhar python/django
-    newproject           Criar novo projeto local
-    newserver            Configurar e instalar todos pacotes necessários para servidor
-    nginx-reload         Reload nginx no servidor
-    nginx-restart        Restart nginx no servidor
-    nginx-start          Start nginx no servidor
-    nginx-stop           Stop nginx no servidor
-    others-server        Instalar nginx, supervisor e php-fpm
-    proftpd-restart      restart proftpd (ou vsftpd, no Arch)
-    python-local         Instalando todos pacotes necessários
-    python-server        Instalar todos pacotes necessários do python no servidor
-    reboot               Reinicia o servidor
-    restart              Reiniciar servicos no servidor
-    restart-server       Restart aplicação no servidor
-    start-server         Start aplicação no servidor
-    stop-server          Stop aplicação no servidor
-    supervisor-restart   Restart supervisor no servidor
-    supervisor-start     Start supervisor no servidor
-    supervisor-stop      Stop supervisor no servidor
-    update-local         Atualizando pacotes
-    update-server        Atualizando pacotes no servidor
-    upgrade-local        Atualizando programas
-    upgrade-server       Atualizar programas no servidor
-    upload-public-key    Faz o upload da chave ssh para o servidor
-    userdel              Deletar usuário no servidor
+## 🚀 Comandos de Deploy do Cliente (`client/`)
 
-`create_password`, `log` e `write_file` eram listados como comandos no
-Fabric 1.x só porque a CLI antiga listava qualquer função do módulo. No
-Fabric 3.x eles continuam existindo como funções internas usadas pelos
-comandos acima, mas não aparecem mais em `fab --list` por não serem
-operações standalone.
-</details>
+Copie o arquivo `client/fabfile.py` para a raiz do seu projeto Django:
 
-## 🌐 Exemplo: criando um site novo
+```bash
+cp /caminho/django-fab-server/client/fabfile.py /caminho/meu-projeto/fabfile.py
+```
 
-`fab newaccount` (rodado de dentro de `server/`) cria uma conta linux
-isolada, o banco de dados e os arquivos de configuração (nginx + supervisor
-ou nginx + php-fpm) para um site novo:
+Abra o terminal na pasta do seu projeto e utilize os comandos:
 
+```bash
+# Setup inicial do projeto no servidor (gera chaves, clona e prepara ambiente)
+fab config
+
+# Deploy completo em 1 comando (git pull, requirements, migrações, staticfiles e restart)
+fab deploy
+
+# Ativar certificado SSL gratuito (HTTPS com Let's Encrypt)
+fab enable-ssl
+
+# Criar superusuário administrador no servidor
+fab createsuperuser
+
+# Corrigir diretivas do Supervisor (--chdir e PYTHONPATH)
+fab fix-supervisor
+
+# Acessar sessão SSH direta no servidor dedicado
+fab login
+
+# Executar comandos do Django no servidor
+fab manage:cmd="migrate"
+fab manage:cmd="dbshell"
+```
+
+---
+
+## 🌐 Exemplo: Criando um Site Novo do Zero
+
+### Passo 1: Provisionar o Servidor
 ```bash
 cd server
+fab newserver
+```
+*(Instala Nginx, MySQL/MariaDB, Python, Supervisor, Git, Gettext, Certbot e FTP).*
+
+### Passo 2: Criar a Conta do Site
+```bash
 fab newaccount
 ```
-
-### 🐍 Site em Django (python)
-
-```
-Digite o nome da conta: meusite
-Digite o domínio do site (sem www): meusite.com.br
-Escolha a linguagem: 1
-Digite o número de uma porta que não está listada acima: 8060
-Digite o nome da pasta onde está o settings/wsgi. ( Ex: app, config, [nome-do-projeto] ): meusite
-Digite a senha do ROOT do MySQL: ********
-Permitir acesso remoto a este banco (usuário 'meusite'@'%')? [y/N] n
+```text
+Digite o nome da conta: meudominio
+Digite o domínio do site (sem www): meudominio.com
+Escolha a linguagem: 1 (PYTHON)
+Digite o número de uma porta livre: 8002
+Digite o nome da pasta settings/wsgi: config
 ```
 
-O comando cria `/home/meusite` com um virtualenv em `env/`, grava
-`nginx.conf` e `supervisor.ini` (aponta para `meusite.wsgi:application` via
-gunicorn, na porta 8060) e um banco de dados `meusite` (por padrão só
-acessível localmente — veja [Segurança](#segurança)). No final ele imprime
-o usuário/senha ssh e do banco — **anote-os**.
-
-Depois disso, envie o código do projeto Django para `/home/meusite/project`
-(por exemplo com o `client/fabfile.py` — veja `fab config` e `fab deploy` em
-[html/NEWSERVER.md](html/NEWSERVER.md)), garantindo que o pacote com o
-`wsgi.py` tenha o mesmo nome informado acima (`meusite`), instale as
-dependências no virtualenv e reinicie:
-
+### Passo 3: Configurar o Projeto no Servidor
+Na pasta do seu projeto Django:
 ```bash
-fab supervisor-restart
-fab nginx-restart
+fab config
+# Copie a chave SSH exibida e adicione em: GitHub > Settings > Deploy Keys
+fab deploy
+fab enable-ssl
 ```
 
-### 🐘 Site em PHP
-
-```
-Digite o nome da conta: meusitephp
-Digite o domínio do site (sem www): meusitephp.com.br
-Escolha a linguagem: 2
-Digite a senha do ROOT do MySQL: ********
-Permitir acesso remoto a este banco (usuário 'meusitephp'@'%')? [y/N] n
-
-IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se
-altere o arquivo php.ini
-Alterar cgi.fix_pathinfo para 0 - Pressione ENTER para continuar..
-```
-
-O comando cria `/home/meusitephp/public_html/`, grava o `nginx.conf`
-apontando para o socket certo do php-fpm da distro e o banco de dados
-`meusitephp`. Basta enviar os arquivos PHP do site para
-`/home/meusitephp/public_html/` (via `scp`/`rsync`/git) e reiniciar:
-
-```bash
-fab nginx-restart
-```
+---
 
 ## 🔒 Segurança
 
-**MySQL/MariaDB**
+- **Banco de Dados**: Credenciais e comandos SQL não trafegam na linha de comando (`ps aux` protegido); senhas são transmitidas via arquivos temporários protegidos por permissão `600`.
+- **Nginx**: Bloqueia arquivos ocultos (`.env`, `.git`, `.htaccess`), desabilita listagem de diretórios (`autoindex off`), aplica cabeçalhos `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`.
+- **Gunicorn / Supervisor**: Executa sob usuário Linux isolado com `--chdir` e `PYTHONPATH` dedicados.
+- **SSL / HTTPS**: Renovação automática via Certbot com suporte a domínios principais e subdomínios `static` e `media`.
 
-- `fab newbase`/`fab newaccount` só criam o usuário `'conta'@'localhost'`
-  por padrão. O usuário `'conta'@'%'` (acessível de qualquer host) só é
-  criado se você responder "sim" ao prompt "Permitir acesso remoto a este
-  banco?" — menos superfície de ataque por padrão.
-- Nenhuma senha ou comando SQL (`CREATE USER`, `ALTER USER`...) é passado na
-  linha de comando do `mysql`. Em um servidor com mais de um usuário,
-  qualquer processo visível via `ps aux` conseguiria ler uma senha passada
-  assim. Em vez disso, o fabfile envia o SQL (e, quando necessário, a senha
-  de autenticação via um `--defaults-extra-file`) por SFTP para um arquivo
-  temporário com permissão `600`, apagado logo depois de usado.
-- Evite alterar o `bind-address` do MySQL para liberar acesso externo a
-  menos que seja estritamente necessário — prefira manter o banco acessível
-  só via `localhost`/socket e liberar acesso remoto caso a caso pelo
-  firewall. (Debian/Ubuntu: `/etc/mysql/mysql.conf.d/mysqld.cnf`.)
-- `fab mysql-server` (e portanto `fab newserver`) é seguro de rodar mais de
-  uma vez: se o MySQL/MariaDB já estiver instalado, ele pula a instalação e
-  **não** gera nem troca a senha do root — assim a senha anotada da primeira
-  vez continua valendo.
+---
 
-**Nginx**
+## 🧪 Testes Automatizados
 
-Os templates em `server/inc/` (`nginx.conf`, `nginx_php.conf`,
-`nginx_server.conf`) já saem com:
-
-- `server_tokens off;` — não expõe a versão do nginx nas respostas/erros.
-- `location ~ /\. { deny all; }` — bloqueia acesso a arquivos ocultos
-  (`.env`, `.git`, `.htaccess`...) na raiz do site.
-- `autoindex off;` em `static`/`media` — não expõe a lista de arquivos do
-  projeto (troque para `on` manualmente se precisar navegar).
-- Headers básicos (`X-Content-Type-Options: nosniff`,
-  `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`).
-- `fastcgi_param HTTP_PROXY "";` no site PHP — mitiga a vulnerabilidade
-  "httpoxy" (CVE-2016-5385 e relacionadas).
-- `proxy_set_header X-Forwarded-Proto $scheme;` no proxy para o Django —
-  necessário para o app detectar requisições HTTPS atrás do nginx
-  (`SECURE_PROXY_SSL_HEADER`).
-
-## 🧪 Testes
-
-O projeto tem testes automatizados (pytest) que validam a lógica local dos
-fabfiles: geração de senha, confirmação, renderização dos templates Jinja2
-de `server/inc/`, a lista de comandos exposta por `fab --list`, a cobertura
-de pacotes/serviços por distro e um teste que simula a criação completa de
-uma conta/site (`fab newaccount`) gravando os comandos que seriam enviados
-ao servidor — inclusive checando que nenhuma senha/SQL vaza pela linha de
-comando — sem precisar de um servidor de verdade (os métodos
-`run`/`sudo`/`put` da conexão SSH são simulados).
+O projeto inclui suíte completa de testes com `pytest`:
 
 ```bash
-pip install -r requirements.txt
 pip install pytest
 pytest
 ```
-
-## 🐳 Docker
-
-Também é possível rodar os dois fabfiles dentro de um container (Python
-3.12), sem precisar instalar Python/Fabric na máquina local:
-
-```bash
-docker compose build
-```
-
-```bash
-# fabfile.py de server/ (provisiona o servidor)
-docker compose run --rm fab --list
-docker compose run --rm fab newserver
-
-# fabfile.py de client/ (deploy do seu projeto)
-docker compose run --rm fab-client --list
-docker compose run --rm fab-client deploy
-```
-
-Os dois serviços já têm `fab` como `entrypoint` (sem precisar repetir
-`fab fab ...`) e montam o repositório (`.:/code`) e o seu `${HOME}/.ssh`
-(somente leitura) como volumes — assim `local_settings.py`, chaves SSH e
-edições nos fabfiles valem na hora, sem precisar rebuildar a imagem a cada
-mudança.
-
-> ⚠️ **`SSHException: No authentication methods available`**: veja
-> [🔑 Acesso SSH](#acesso-ssh) — geralmente falta configurar a chave (ou o
-> servidor ainda só aceita login por senha). Se já tem chave e mesmo assim
-> der esse erro só dentro do Docker, confira se `docker-compose.yml` está
-> usando `${HOME}/.ssh` no volume (não `~/.ssh` — o Compose não expande
-> til, então o mount vai silenciosamente para um caminho errado).
-
-## 🏗️ Estrutura interna
-
-Cada fabfile é um único arquivo (`server/fabfile.py` provisiona servidores;
-`client/fabfile.py` é feito para ser copiado, sozinho, para dentro de outro
-projeto — por isso os dois não compartilham código entre si). Dentro de cada
-um, a lógica repetida foi extraída em helpers privados (prefixo `_`, não
-aparecem em `fab --list`):
-
-- `get_connection()` — cria a `Connection` SSH uma única vez por execução
-  (memoizada com `functools.lru_cache`) e é reaproveitada por todos os
-  comandos remotos daquele fabfile.
-- `server/fabfile.py`: `_install(c, packages)`/`_install_local(c, packages)`
-  centralizam a instalação de pacotes conforme `cfg.os_family`
-  (apt/dnf/pacman); `_ensure_epel(c)` habilita o repositório EPEL quando
-  necessário (RHEL/CentOS Stream); `_systemctl(service, action)` centraliza
-  `systemctl start/stop/restart/reload`; `_mysql_exec(sql, password=...)`
-  centraliza (e protege, veja [Segurança](#segurança)) os comandos
-  MySQL/MariaDB; `write_file(...)` substitui o antigo `upload_template` do
-  Fabric 1.x.
-- `client/fabfile.py`: `remote_project()` é um context manager que devolve a
-  conexão já posicionada dentro do diretório do projeto no servidor (`with
-  remote_project() as conn:`), evitando repetir `get_connection()` +
-  `conn.cd(project_path)` em cada tarefa remota.
+*Cobertura: 59 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric e simulação de novas contas.*
