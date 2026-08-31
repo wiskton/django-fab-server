@@ -269,6 +269,14 @@ _FTP_BY_FAMILY = {
     },
 }
 
+_CERTBOT_PACKAGES_BY_FAMILY = {
+    "debian": "certbot python3-certbot-nginx",
+    "fedora": "certbot python3-certbot-nginx",
+    "rhel": "certbot python3-certbot-nginx",
+    "arch": "certbot certbot-nginx",
+}
+
+
 
 def _install(c, packages):
     """Instala pacotes usando o gerenciador certo para `cfg.os_family`."""
@@ -761,8 +769,8 @@ def git_server(c):
 
 @task
 def others_server(c):
-    """Instalar nginx, supervisor e php-fpm"""
-    log("Instalando nginx e supervisor", yellow)
+    """Instalar nginx, supervisor, php-fpm e certbot (SSL)"""
+    log("Instalando nginx, supervisor e certbot", yellow)
     family = cfg.os_family
     conn = get_connection()
     _ensure_epel(c)
@@ -777,6 +785,8 @@ def others_server(c):
 
     ftp = _FTP_BY_FAMILY[family]
     _install(c, ftp["package"])
+
+    _install(c, _CERTBOT_PACKAGES_BY_FAMILY[family])
 
 
 @task
@@ -1050,13 +1060,8 @@ def install_ssl(c, dominio=None):
     conn = get_connection()
     family = cfg.os_family
 
-    if family == "debian":
-        conn.sudo("apt-get update && apt-get install -y certbot python3-certbot-nginx")
-    elif family in ("fedora", "rhel"):
-        _ensure_epel(c)
-        conn.sudo("dnf install -y certbot python3-certbot-nginx")
-    elif family == "arch":
-        conn.sudo("pacman -Sy --noconfirm certbot certbot-nginx")
+    _ensure_epel(c)
+    _install(c, _CERTBOT_PACKAGES_BY_FAMILY[family])
 
     if not dominio:
         dominio = input("Digite o domínio para ativar o SSL (ex: meudominio.com): ").strip()

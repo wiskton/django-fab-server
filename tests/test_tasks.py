@@ -10,7 +10,7 @@ EXPECTED_ROOT_TASKS = {
     "python-server", "reboot", "restart", "restart-server", "start-server",
     "stop-server", "supervisor-restart", "supervisor-start",
     "supervisor-stop", "update-local", "update-server", "upgrade-local",
-    "upgrade-server", "upload-public-key", "userdel",
+    "upgrade-server", "upload-public-key", "userdel", "install-ssl",
 }
 
 EXPECTED_PROJETO_TASKS = {
