@@ -174,7 +174,7 @@ _PYTHON_PACKAGES_BY_FAMILY = {
 }
 
 _DB_PACKAGES_BY_FAMILY = {
-    "debian": "mysql-server libmysqlclient-dev",
+    "debian": "mysql-server libmysqlclient-dev default-libmysqlclient-dev build-essential pkg-config",
     "fedora": "mariadb-server mariadb-devel",
     "rhel": "mariadb-server mariadb-devel",
     "arch": "mariadb mariadb-libs",
@@ -765,6 +765,22 @@ def git_server(c):
     """Instalar git no servidor"""
     log("Instalando git", yellow)
     _install(c, "git")
+
+
+@task
+def install_mysql_deps(c):
+    """Instalar dependências necessárias para compilar mysqlclient no servidor"""
+    log("Instalando dependências do MySQL para compilação do mysqlclient", yellow)
+    family = cfg.os_family
+    
+    if family == "debian":
+        _install(c, "default-libmysqlclient-dev build-essential pkg-config")
+    elif family in ("fedora", "rhel"):
+        _install(c, "mariadb-devel gcc gcc-c++ make")
+    elif family == "arch":
+        _install(c, "mariadb-libs base-devel")
+    
+    log("✔ Dependências do MySQL instaladas com sucesso!", green)
 
 
 @task
