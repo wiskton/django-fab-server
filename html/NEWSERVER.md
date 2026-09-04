@@ -1,7 +1,7 @@
 Utilizando script para Servidor
 =================
 
-<p>Instala e configura todos os pacotes necessários para configurar um servidor com python/django + nginx + supervisor em Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux.</p>
+<p>Instala e configura todos os pacotes necessários para configurar um servidor com Python/Django, PHP e NPM (Node.js) + Nginx + Supervisor em Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux.</p>
 
 
 Os comandos abaixo rodam de dentro da pasta `server/` deste repositório.
@@ -43,7 +43,7 @@ Reiniciar nginx e supervisor
 
 <h3>Contas</h3>
 
-<p>Cria um usuário e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos.</p>
+<p>Cria um usuário e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos. Suporta <strong>1) PYTHON</strong>, <strong>2) PHP</strong> e <strong>3) NPM (Node.js)</strong>.</p>
 
 Criar uma nova conta no servidor:
 

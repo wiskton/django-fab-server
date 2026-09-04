@@ -131,3 +131,163 @@ def test_simulate_new_python_site_creation(server_fabfile, monkeypatch):
     assert "chown -R acmesite:acmesite /home/acmesite" in recorder.sudo_calls
     assert "systemctl restart nginx" in recorder.sudo_calls
     assert "systemctl restart supervisor" in recorder.sudo_calls
+
+
+def test_simulate_new_npm_ssr_site_creation(server_fabfile, monkeypatch):
+    recorder = CommandRecorder()
+
+    monkeypatch.setattr(Connection, "run", recorder.record_run())
+    monkeypatch.setattr(Connection, "sudo", recorder.record_sudo())
+    monkeypatch.setattr(Connection, "put", recorder.record_put())
+
+    server_fabfile.get_connection.cache_clear()
+    for attr in ("conta", "dominio", "linguagem", "porta", "npm_type", "npm_start_cmd", "mysql_password"):
+        server_fabfile.cfg[attr] = ""
+
+    respostas = iter(
+        [
+            "nodeapp",          # nome da conta
+            "nodeapp.com.br",   # dominio
+            "3",                # linguagem: NPM (Node.js)
+            "1",                # tipo: 1) SSR / API
+            "8070",             # porta
+            "npm run start",    # comando start
+            "senha-root-mysql", # senha root mysql
+            "n",                # sem acesso remoto
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(respostas))
+
+    try:
+        server_fabfile.newaccount(Context())
+    finally:
+        server_fabfile.get_connection.cache_clear()
+        for attr in ("conta", "dominio", "linguagem", "porta", "npm_type", "npm_start_cmd", "mysql_password"):
+            server_fabfile.cfg[attr] = ""
+
+    # criou usuario, logs e project
+    assert "adduser nodeapp" in recorder.sudo_calls
+    assert "mkdir /home/nodeapp/logs" in recorder.sudo_calls
+    assert "mkdir -p /home/nodeapp/project" in recorder.sudo_calls
+
+    # enviou os arquivos de configuracao esperados (nginx.conf a partir de nginx_node.conf e supervisor.ini)
+    destinations = {remote for remote, _content in recorder.put_calls}
+    assert any(d.startswith("/tmp/nginx.conf") for d in destinations)
+    assert any(d.startswith("/tmp/supervisor.ini") for d in destinations)
+
+    # supervisor.ini contém o comando e porta corretos
+    supervisor_contents = [
+        content for remote, content in recorder.put_calls if "supervisor.ini" in remote
+    ]
+    assert any("command=npm run start" in c for c in supervisor_contents)
+    assert any('PORT="8070"' in c for c in supervisor_contents)
+
+    # ajustou permissoes e reiniciou servicos
+    assert "chown -R nodeapp:nodeapp /home/nodeapp" in recorder.sudo_calls
+    assert "systemctl restart nginx" in recorder.sudo_calls
+    assert "systemctl restart supervisor" in recorder.sudo_calls
+
+
+def test_simulate_new_npm_static_site_creation(server_fabfile, monkeypatch):
+    recorder = CommandRecorder()
+
+    monkeypatch.setattr(Connection, "run", recorder.record_run())
+    monkeypatch.setattr(Connection, "sudo", recorder.record_sudo())
+    monkeypatch.setattr(Connection, "put", recorder.record_put())
+
+    server_fabfile.get_connection.cache_clear()
+    for attr in ("conta", "dominio", "linguagem", "porta", "npm_type", "npm_start_cmd", "mysql_password"):
+        server_fabfile.cfg[attr] = ""
+
+    respostas = iter(
+        [
+            "reactspa",         # nome da conta
+            "reactspa.com.br",  # dominio
+            "3",                # linguagem: NPM (Node.js)
+            "2",                # tipo: 2) Frontend Estático / SPA
+            "senha-root-mysql", # senha root mysql
+            "n",                # sem acesso remoto
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(respostas))
+
+    try:
+        server_fabfile.newaccount(Context())
+    finally:
+        server_fabfile.get_connection.cache_clear()
+        for attr in ("conta", "dominio", "linguagem", "porta", "npm_type", "npm_start_cmd", "mysql_password"):
+            server_fabfile.cfg[attr] = ""
+
+    # criou usuario, logs, dist e public_html
+    assert "adduser reactspa" in recorder.sudo_calls
+    assert "mkdir /home/reactspa/logs" in recorder.sudo_calls
+    assert "mkdir -p /home/reactspa/project/dist" in recorder.sudo_calls
+    assert "mkdir -p /home/reactspa/public_html" in recorder.sudo_calls
+
+    # enviou nginx.conf a partir de nginx_npm_static.conf (e NÃO enviou supervisor.ini)
+    destinations = {remote for remote, _content in recorder.put_calls}
+    assert any(d.startswith("/tmp/nginx.conf") for d in destinations)
+    assert not any(d.startswith("/tmp/supervisor.ini") for d in destinations)
+
+    # nginx.conf tem root /home/reactspa/project/dist/
+    nginx_contents = [
+        content for remote, content in recorder.put_calls if "nginx.conf" in remote
+    ]
+    assert any("root /home/reactspa/project/dist/;" in c for c in nginx_contents)
+
+    # ajustou permissoes e reiniciou servicos
+    assert "chown -R reactspa:reactspa /home/reactspa" in recorder.sudo_calls
+    assert "systemctl restart nginx" in recorder.sudo_calls
+
+
+def test_simulate_new_php_site_creation(server_fabfile, monkeypatch):
+    recorder = CommandRecorder()
+
+    monkeypatch.setattr(Connection, "run", recorder.record_run())
+    monkeypatch.setattr(Connection, "sudo", recorder.record_sudo())
+    monkeypatch.setattr(Connection, "put", recorder.record_put())
+
+    server_fabfile.get_connection.cache_clear()
+    for attr in ("conta", "dominio", "linguagem", "porta", "mysql_password"):
+        server_fabfile.cfg[attr] = ""
+
+    respostas = iter(
+        [
+            "phpsite",          # nome da conta
+            "phpsite.com.br",   # dominio
+            "2",                # linguagem: PHP
+            "",                 # enter para confirmação do cgi.fix_pathinfo
+            "senha-root-mysql", # senha root mysql
+            "n",                # sem acesso remoto
+        ]
+    )
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(respostas))
+
+    try:
+        server_fabfile.newaccount(Context())
+    finally:
+        server_fabfile.get_connection.cache_clear()
+        for attr in ("conta", "dominio", "linguagem", "porta", "mysql_password"):
+            server_fabfile.cfg[attr] = ""
+
+    # criou usuario, logs e public_html
+    assert "adduser phpsite" in recorder.sudo_calls
+    assert "mkdir /home/phpsite/logs" in recorder.sudo_calls
+    assert "mkdir /home/phpsite/public_html/" in recorder.sudo_calls
+
+    # enviou nginx.conf (a partir de nginx_php.conf) e NÃO supervisor.ini
+    destinations = {remote for remote, _content in recorder.put_calls}
+    assert any(d.startswith("/tmp/nginx.conf") for d in destinations)
+    assert not any(d.startswith("/tmp/supervisor.ini") for d in destinations)
+
+    # nginx.conf tem root /home/phpsite/public_html/ e fastcgi_pass
+    nginx_contents = [
+        content for remote, content in recorder.put_calls if "nginx.conf" in remote
+    ]
+    assert any("root /home/phpsite/public_html/;" in c for c in nginx_contents)
+    assert any("fastcgi_pass" in c for c in nginx_contents)
+
+    # ajustou permissoes e reiniciou servicos
+    assert "chown -R phpsite:phpsite /home/phpsite" in recorder.sudo_calls
+    assert "systemctl restart nginx" in recorder.sudo_calls
+

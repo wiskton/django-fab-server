@@ -74,5 +74,31 @@ def test_supervisor_ini_uses_wsgi_module_not_run_gunicorn(inc_dir):
     assert "run_gunicorn" not in rendered
 
 
+def test_nginx_node_conf_uses_sample_values(inc_dir):
+    env = _jinja_env(inc_dir)
+    rendered = env.get_template("nginx_node.conf").render(**SAMPLE_CONTEXT)
+    assert "acme.com.br" in rendered
+    assert "8060" in rendered
+    assert "proxy_pass http://acme;" in rendered
+    assert "proxy_set_header Upgrade $http_upgrade;" in rendered
+
+
+def test_nginx_npm_static_conf_uses_dist_and_spa_routing(inc_dir):
+    env = _jinja_env(inc_dir)
+    rendered = env.get_template("nginx_npm_static.conf").render(**SAMPLE_CONTEXT)
+    assert "acme.com.br" in rendered
+    assert "root /home/acme/project/dist/;" in rendered
+    assert "try_files $uri $uri/ /index.html;" in rendered
+
+
+def test_supervisor_node_ini_uses_command_and_port(inc_dir):
+    env = _jinja_env(inc_dir)
+    context = dict(SAMPLE_CONTEXT, npm_start_cmd="npm start")
+    rendered = env.get_template("supervisor_node.ini").render(**context)
+    assert "command=npm start" in rendered
+    assert 'PORT="8060"' in rendered
+    assert "user=acme" in rendered
+
+
 def test_inc_dir_has_no_leftover_django17_template(inc_dir):
     assert not (inc_dir / "supervisor_django17.ini").exists()

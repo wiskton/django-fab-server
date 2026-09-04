@@ -10,6 +10,7 @@ username = ""  # nome da conta criada no servidor, ex: "meusite"
 host = ""  # IP ou domínio do servidor
 repositorio = ""  # URL git do projeto, ex: "git@github.com:usuario/projeto.git"
 branch = "main"
+app_type = ""  # "python" (Django), "php" ou "npm" (Node.js/frontend) - auto-detecta se vazio
 
 
 def _prompt_if_missing(name, prompt_text):
@@ -37,7 +38,67 @@ def _prod_server():
     return f"{username}@{host}"
 
 
-def _project_path():
+def _get_app_type(explicit_type=None, conn=None, interactive=True):
+    """Identifica o tipo de aplicação: 'python', 'php' ou 'npm'."""
+    if explicit_type:
+        val = str(explicit_type).strip().lower()
+        if val in ("1", "python", "py", "django"):
+            return "python"
+        if val in ("2", "php", "laravel"):
+            return "php"
+        if val in ("3", "npm", "node", "nodejs", "frontend"):
+            return "npm"
+        return val
+
+    configured = globals().get("app_type", "").strip().lower()
+    if configured:
+        if configured in ("1", "python", "py", "django"):
+            return "python"
+        if configured in ("2", "php", "laravel"):
+            return "php"
+        if configured in ("3", "npm", "node", "nodejs", "frontend"):
+            return "npm"
+
+    # Detecção local
+    import os
+    if os.path.exists("manage.py") or os.path.exists("requirements.txt") or os.path.exists("Pipfile"):
+        return "python"
+    if os.path.exists("composer.json") or os.path.exists("artisan"):
+        return "php"
+    if os.path.exists("package.json"):
+        return "npm"
+
+    # Detecção remota
+    if conn:
+        for base in (f"/home/{username}/project", f"/home/{username}/public_html"):
+            res = conn.run(f"test -f {base}/manage.py || test -f {base}/requirements.txt", warn=True, hide=True)
+            if res.ok:
+                return "python"
+            res = conn.run(f"test -f {base}/composer.json || test -f {base}/artisan", warn=True, hide=True)
+            if res.ok:
+                return "php"
+            res = conn.run(f"test -f {base}/package.json", warn=True, hide=True)
+            if res.ok:
+                return "npm"
+
+    if not interactive:
+        return "python"
+
+    escolha = input(
+        "Tipo de aplicação para deploy:\n1) Python / Django\n2) PHP\n3) NPM (Node.js)\nEscolha a linguagem [1]: "
+    ).strip().lower()
+    if escolha in ("2", "php"):
+        return "php"
+    if escolha in ("3", "npm", "node", "nodejs"):
+        return "npm"
+    return "python"
+
+
+def _project_path(conn=None):
+    if conn:
+        res_pub = conn.run(f"test -d /home/{username}/public_html/.git", warn=True, hide=True)
+        if res_pub.ok:
+            return f"/home/{username}/public_html"
     return f"/home/{username}/project"
 
 
@@ -64,7 +125,8 @@ def get_connection():
 def remote_project():
     """Conexão posicionada dentro do diretório do projeto no servidor."""
     conn = get_connection()
-    with conn.cd(_project_path()):
+    target_path = _project_path(conn)
+    with conn.cd(target_path):
         yield conn
 
 
@@ -72,16 +134,46 @@ def log(message):
     print(f"\n{'=' * 62}\n{message}\n{'=' * 62}\n")
 
 
-def _bootstrap_project(conn):
-    """Instala dependências, executa migrações, compila traduções e coleta arquivos estáticos."""
-    with conn.cd(_project_path()):
-        conn.run(f"source {_env_path()} && pip install -U pip")
-        conn.run(f"source {_env_path()} && pip install -r requirements.txt")
-        conn.run(f"source {_env_path()} && python manage.py migrate --noinput")
-        res = conn.run(f"source {_env_path()} && python manage.py compilemessages", warn=True)
-        if res.failed:
-            log("AVISO: gettext não instalado no servidor. Para instalar, execute: fab install-gettext")
-        conn.run(f"source {_env_path()} && python manage.py collectstatic --noinput")
+def _bootstrap_project(conn, app_t=None):
+    """Instala dependências e prepara o ambiente conforme a linguagem do projeto."""
+    t = _get_app_type(explicit_type=app_t, conn=conn, interactive=False)
+    target = _project_path(conn)
+    with remote_project() as c_proj:
+        if t == "python":
+            c_proj.run(f"source {_env_path()} && pip install -U pip")
+            c_proj.run(f"test -f requirements.txt && source {_env_path()} && pip install -r requirements.txt || true")
+            c_proj.run(f"test -f manage.py && source {_env_path()} && python manage.py migrate --noinput || true")
+            res = c_proj.run(f"test -f manage.py && source {_env_path()} && python manage.py compilemessages", warn=True)
+            if res.failed:
+                log("AVISO: gettext não instalado no servidor. Para instalar, execute: fab install-gettext")
+            res_pkg = c_proj.run("test -f package.json", warn=True, hide=True)
+            if res_pkg.ok:
+                c_proj.run("npm install --no-audit && (grep -q '\"build\"' package.json && npm run build || true)", warn=True)
+            c_proj.run(f"test -f manage.py && source {_env_path()} && python manage.py collectstatic --noinput || true")
+        elif t == "php":
+            if target == f"/home/{username}/project":
+                res_pub = conn.run(f"test -d /home/{username}/project/public", warn=True, hide=True)
+                pub_target = f"/home/{username}/project/public" if res_pub.ok else f"/home/{username}/project"
+                conn.run(f"test -d /home/{username}/public_html/.git || (test -L /home/{username}/public_html || rm -rf /home/{username}/public_html)", warn=True)
+                conn.run(f"test -e /home/{username}/public_html || ln -sfn {pub_target} /home/{username}/public_html", warn=True)
+
+            res_comp = c_proj.run("test -f composer.json", warn=True, hide=True)
+            if res_comp.ok:
+                res_which = c_proj.run("which composer", warn=True, hide=True)
+                if res_which.ok:
+                    c_proj.run("composer install --no-dev --optimize-autoloader --no-interaction", warn=True)
+                else:
+                    log("AVISO: composer não encontrado no PATH do servidor.")
+            res_pkg = c_proj.run("test -f package.json", warn=True, hide=True)
+            if res_pkg.ok:
+                c_proj.run("test -d node_modules || npm install --no-audit --no-fund", warn=True)
+                c_proj.run("grep -q '\"build\"' package.json && npm run build || true", warn=True)
+        elif t == "npm":
+            c_proj.run("test -f package-lock.json && npm ci --prefer-offline --no-audit || npm install --no-audit", warn=True)
+            res_build = c_proj.run("grep -q '\"build\"' package.json", warn=True, hide=True)
+            if res_build.ok:
+                c_proj.run("npm run build")
+                c_proj.run("test -d build && (test -d dist || ln -s build dist) || true", warn=True)
 
 
 @task
@@ -103,7 +195,7 @@ def show_key(c):
 
 
 @task
-def config(c):
+def config(c, app_type=None):
     """Configura o servidor pela primeira vez (chaves SSH, clone e bootstrap)."""
     conn = get_connection()
     _ensure_repositorio()
@@ -117,16 +209,17 @@ def config(c):
     conn.run("cat ~/.ssh/id_rsa.pub")
     input("\n➡ Copie a chave acima, adicione no GitHub > Settings > Deploy Keys > Add deploy key\nDepois tecle ENTER aqui para continuar...")
 
+    target = _project_path(conn)
     log("2. CLONANDO REPOSITÓRIO")
-    conn.run(f"test -d {_project_path()} || git clone {repositorio} {_project_path()}")
+    conn.run(f"test -d {target}/.git || (rm -rf {target} && git clone {repositorio} {target})")
 
-    log("3. PREPARANDO AMBIENTE E BANCO DE DADOS")
-    _bootstrap_project(conn)
+    log("3. PREPARANDO AMBIENTE E DEPENDÊNCIAS")
+    _bootstrap_project(conn, app_t=app_type)
     log("Configuração inicial concluída! Execute: fab deploy")
 
 
 @task
-def reclone(c):
+def reclone(c, app_type=None):
     """Apaga a pasta do projeto no servidor e clona novamente a partir do zero."""
     conn = get_connection()
     _ensure_repositorio()
@@ -135,33 +228,145 @@ def reclone(c):
     conn.run("mkdir -p ~/.ssh")
     conn.run("ssh-keyscan -t rsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null || true")
 
-    if not confirm(f"ATENÇÃO: Deseja apagar {_project_path()} no servidor e clonar de novo?", default=False):
+    target = _project_path(conn)
+    if not confirm(f"ATENÇÃO: Deseja apagar {target} no servidor e clonar de novo?", default=False):
         log("Operação cancelada.")
         return
 
     log("2. CLONANDO NOVAMENTE O REPOSITÓRIO")
-    conn.run(f"rm -rf {_project_path()}")
-    conn.run(f"git clone {repositorio} {_project_path()}")
+    conn.run(f"rm -rf {target}")
+    conn.run(f"git clone {repositorio} {target}")
 
-    log("3. PREPARANDO AMBIENTE E BANCO DE DADOS")
-    _bootstrap_project(conn)
+    log("3. PREPARANDO AMBIENTE E DEPENDÊNCIAS")
+    _bootstrap_project(conn, app_t=app_type)
     restart(c)
     nginx_restart(c)
     log("✔ Projeto reclonado e configurado com sucesso!")
 
 
 @task
-def deploy(c):
-    """Executa o ciclo completo de deploy em produção."""
-    log("Iniciando deploy da aplicação")
+def npm_install(c):
+    """Instala dependências do NPM no servidor."""
+    log("Instalando dependências do NPM no servidor")
+    with remote_project() as conn:
+        conn.run(
+            "test -f package-lock.json && npm ci --prefer-offline --no-audit || npm install --no-audit"
+        )
+
+
+@task
+def npm_build(c):
+    """Executa 'npm run build' no servidor se package.json e o script existirem."""
+    with remote_project() as conn:
+        res = conn.run("test -f package.json", warn=True, hide=True)
+        if res.ok:
+            log("Verificando e compilando assets NPM no servidor")
+            conn.run("test -d node_modules || npm install --no-audit --no-fund", warn=True)
+            res_build = conn.run("grep -q '\"build\"' package.json 2>/dev/null", warn=True, hide=True)
+            if res_build.ok:
+                conn.run("npm run build")
+                conn.run("test -d build && (test -d dist || ln -s build dist) || true", warn=True)
+
+
+@task
+def update_composer(c):
+    """Atualiza dependências do Composer no servidor se composer.json existir."""
+    with remote_project() as conn:
+        res = conn.run("test -f composer.json", warn=True, hide=True)
+        if res.ok:
+            log("Atualizando dependências do Composer no servidor")
+            res_c = conn.run("which composer", warn=True, hide=True)
+            if res_c.ok:
+                conn.run("composer install --no-dev --optimize-autoloader --no-interaction")
+            else:
+                log("AVISO: composer não encontrado no PATH do servidor.")
+
+
+@task
+def reload_php(c):
+    """Recarrega os serviços PHP-FPM e Nginx no servidor."""
+    log("Recarregando serviços PHP e Nginx")
+    conn = get_connection()
+    conn.sudo("systemctl reload 'php*-fpm' || systemctl reload php-fpm || true", warn=True)
+    nginx_reload(c)
+
+
+@task
+def deploy_python(c):
+    """Executa o ciclo completo de deploy para aplicações Python / Django."""
+    log("Iniciando deploy da aplicação Python / Django")
     pull(c)
     push(c)
     remote_pull(c)
     update_requirements(c)
+    npm_build(c)
     remote_migrate_all(c)
     translate_remote(c)
     collectstatic(c)
     restart(c)
+    log("✔ Deploy Python / Django concluído com sucesso!")
+
+
+@task
+def deploy_php(c):
+    """Executa o ciclo completo de deploy para aplicações PHP."""
+    log("Iniciando deploy da aplicação PHP")
+    pull(c)
+    push(c)
+    remote_pull(c)
+    conn = get_connection()
+    target = _project_path(conn)
+    if target == f"/home/{username}/project":
+        res_pub = conn.run(f"test -d /home/{username}/project/public", warn=True, hide=True)
+        pub_target = f"/home/{username}/project/public" if res_pub.ok else f"/home/{username}/project"
+        conn.run(f"test -d /home/{username}/public_html/.git || (test -L /home/{username}/public_html || rm -rf /home/{username}/public_html)", warn=True)
+        conn.run(f"test -e /home/{username}/public_html || ln -sfn {pub_target} /home/{username}/public_html", warn=True)
+    update_composer(c)
+    npm_build(c)
+    with remote_project() as c_proj:
+        res_art = c_proj.run("test -f artisan", warn=True, hide=True)
+        if res_art.ok:
+            log("Executando comandos Artisan (Laravel)")
+            c_proj.run("php artisan migrate --force", warn=True)
+            c_proj.run("php artisan config:cache", warn=True)
+            c_proj.run("php artisan route:cache", warn=True)
+            c_proj.run("php artisan view:cache", warn=True)
+    reload_php(c)
+    log("✔ Deploy PHP concluído com sucesso!")
+
+
+@task
+def deploy_npm(c):
+    """Executa o ciclo completo de deploy para aplicações NPM / Node.js."""
+    log("Iniciando deploy da aplicação NPM / Node.js")
+    pull(c)
+    push(c)
+    remote_pull(c)
+    npm_install(c)
+    npm_build(c)
+    conn = get_connection()
+    status = conn.run(f"supervisorctl status {username}", warn=True, hide=True)
+    if status.ok and "ERROR (no such process)" not in status.stdout:
+        restart(c)
+    else:
+        nginx_reload(c)
+    log("✔ Deploy NPM / Node.js concluído com sucesso!")
+
+
+@task
+def deploy(c, app_type=None):
+    """Executa o ciclo completo de deploy em produção (auto-detecta Python, PHP ou NPM)."""
+    conn = get_connection()
+    t = _get_app_type(explicit_type=app_type, conn=conn)
+    log(f"Iniciando deploy para: {t.upper()}")
+    if t == "python":
+        deploy_python(c)
+    elif t == "php":
+        deploy_php(c)
+    elif t == "npm":
+        deploy_npm(c)
+    else:
+        log(f"Tipo de aplicação '{t}' não reconhecido. Use 'python', 'php' ou 'npm'.")
 
 
 @task
@@ -180,12 +385,26 @@ def restart(c):
 
 
 @task
-def fix_supervisor(c):
-    """Atualiza o supervisor.ini com chdir, pythonpath e reinicia o Supervisor."""
-    log(f"Atualizando /home/{username}/supervisor.ini no servidor")
+def fix_supervisor(c, app_type=None, port="8002", command=""):
+    """Atualiza o supervisor.ini no servidor (suporta Python e Node.js/NPM) e reinicia."""
+    t = _get_app_type(explicit_type=app_type, interactive=False)
+    log(f"Atualizando /home/{username}/supervisor.ini no servidor ({t})")
     conn = get_connection()
-    ini_content = f"""[program:{username}]
-command=/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:8002 config.wsgi:application
+    if t == "npm":
+        cmd = command or "npm run start"
+        ini_content = f"""[program:{username}]
+command={cmd}
+directory=/home/{username}/project
+user={username}
+autostart=true
+autorestart=true
+redirect_stderr=true
+environment=PORT="{port}",NODE_ENV="production",PATH="/usr/local/bin:/usr/bin:/bin",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
+"""
+    else:
+        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} config.wsgi:application"
+        ini_content = f"""[program:{username}]
+command={cmd}
 directory=/home/{username}/project
 user={username}
 autostart=true

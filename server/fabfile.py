@@ -64,6 +64,8 @@ cfg = Config(
     key_filename=chave,
     public_key=public_key,
     pasta_settings="",
+    npm_type="",
+    npm_start_cmd="",
     db_password="",
     os_family=os_family,
 )
@@ -276,6 +278,13 @@ _CERTBOT_PACKAGES_BY_FAMILY = {
     "arch": "certbot certbot-nginx",
 }
 
+_NODE_PACKAGES_BY_FAMILY = {
+    "debian": "nodejs npm",
+    "fedora": "nodejs npm",
+    "rhel": "nodejs npm",
+    "arch": "nodejs npm",
+}
+
 
 
 def _install(c, packages):
@@ -410,6 +419,7 @@ def newserver(c):
     python_server(c)
     mysql_server(c)
     git_server(c)
+    node_server(c)
     others_server(c)
 
     # mysql
@@ -458,9 +468,22 @@ def newaccount(c):
         cfg.dominio = input("Digite o domínio do site (sem www): ")
     if not cfg.linguagem:
         cfg.linguagem = input(
-            "Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n\nEscolha a linguagem: "
+            "Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n3) NPM (Node.js)\n\nEscolha a linguagem: "
         )
-    if int(cfg.linguagem) == 1:
+    lang_str = str(cfg.linguagem).strip().lower()
+    if lang_str in ("1", "python"):
+        lang_id = 1
+    elif lang_str in ("2", "php"):
+        lang_id = 2
+    elif lang_str in ("3", "npm", "node", "nodejs"):
+        lang_id = 3
+    else:
+        try:
+            lang_id = int(lang_str)
+        except ValueError:
+            lang_id = 1
+
+    if lang_id == 1:
         if not cfg.porta:
             log(
                 "ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.",
@@ -478,6 +501,33 @@ def newaccount(c):
             cfg.pasta_settings = input(
                 "Digite o nome da pasta onde está o settings/wsgi. ( Ex: app, config, [nome-do-projeto] ):"
             )
+    elif lang_id == 3:
+        if not getattr(cfg, "npm_type", None):
+            cfg.npm_type = input(
+                "Tipo de aplicação NPM:\n1) Node.js SSR / API (com Supervisor na porta TCP e proxy reverso Nginx)\n2) Frontend Estático / SPA (Nginx servindo pasta dist/build)\n\nEscolha o tipo [1]: "
+            ).strip() or "1"
+        npm_type_str = str(cfg.npm_type).strip().lower()
+        if npm_type_str in ("1", "ssr", "node", "api"):
+            npm_type_id = 1
+        else:
+            npm_type_id = 2
+        cfg.npm_type = str(npm_type_id)
+
+        if npm_type_id == 1:
+            if not cfg.porta:
+                log(
+                    "ATENCAO!! VERIFIQUE AS PORTAS JÁ UTILIZADAS\nOBS: abaixo estão apenas as portas utilizadas pelas conexões tcp e sites, porém\noutro programa no servidor pode estar utilizando uma porta não listada abaixo.",
+                    yellow,
+                )
+                conn.sudo("ss -tulpn")
+                cfg.porta = input(
+                    "Digite o número de uma porta que não está listada acima: "
+                )
+            if not getattr(cfg, "npm_start_cmd", None):
+                cfg.npm_start_cmd = input(
+                    "Comando para iniciar a aplicação [npm run start]: "
+                ).strip() or "npm run start"
+
     if not cfg.mysql_password:
         cfg.mysql_password = input("Digite a senha do ROOT do MySQL: ")
 
@@ -489,12 +539,12 @@ def newaccount(c):
     conn.sudo("touch /home/{0}/logs/access.log".format(cfg.conta))
     conn.sudo("touch /home/{0}/logs/error.log".format(cfg.conta))
 
-    if int(cfg.linguagem) == 1:
+    if lang_id == 1:
         conn.sudo("python3 -m venv /home/{0}/env".format(cfg.conta))
         write_file("nginx.conf", "/home/{0}/nginx.conf".format(cfg.conta))
         write_file("supervisor.ini", "/home/{0}/supervisor.ini".format(cfg.conta))
         write_file("bash_login", "/home/{0}/.bash_login".format(cfg.conta))
-    else:
+    elif lang_id == 2:
         php_ini = _PHP_INI_PATH_BY_FAMILY[cfg.os_family]
         log(
             """IMPORTANTE!!! Para o funcionamento dos projetos em php com nginx é necessário que se
@@ -514,6 +564,17 @@ def newaccount(c):
         cfg.php_fpm_sock = _PHP_FPM_SOCK_BY_FAMILY[cfg.os_family]
         write_file("nginx_php.conf", "/home/{0}/nginx.conf".format(cfg.conta))
         conn.sudo("mkdir /home/{0}/public_html/".format(cfg.conta))
+    elif lang_id == 3:
+        npm_type_id = int(getattr(cfg, "npm_type", 1) or 1)
+        if npm_type_id == 1:
+            write_file("nginx_node.conf", "/home/{0}/nginx.conf".format(cfg.conta))
+            write_file("supervisor_node.ini", "/home/{0}/supervisor.ini".format(cfg.conta))
+            write_file("bash_login", "/home/{0}/.bash_login".format(cfg.conta))
+            conn.sudo("mkdir -p /home/{0}/project".format(cfg.conta))
+        else:
+            write_file("nginx_npm_static.conf", "/home/{0}/nginx.conf".format(cfg.conta))
+            conn.sudo("mkdir -p /home/{0}/project/dist".format(cfg.conta))
+            conn.sudo("mkdir -p /home/{0}/public_html".format(cfg.conta))
 
     # cria banco e usuario no banco
     banco_senha = create_password(12)
@@ -765,6 +826,14 @@ def git_server(c):
     """Instalar git no servidor"""
     log("Instalando git", yellow)
     _install(c, "git")
+
+
+@task
+def node_server(c):
+    """Instalar Node.js e NPM no servidor"""
+    log("Instalando Node.js e NPM", yellow)
+    _ensure_epel(c)
+    _install(c, _NODE_PACKAGES_BY_FAMILY[cfg.os_family])
 
 
 @task

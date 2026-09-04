@@ -107,9 +107,9 @@ fab --list
 
 | Categoria | Comandos Principais |
 |---|---|
-| 🖥️ **Servidor** | `newserver` (setup completo do servidor do zero) · `newaccount` · `delaccount` · `listaccount` |
+| 🖥️ **Servidor** | `newserver` (setup completo do servidor do zero) · `newaccount` (Python, PHP ou NPM/Node.js) · `delaccount` · `listaccount` |
 | 🔒 **SSL / HTTPS** | `install-ssl` (instala Certbot e ativa certificado Let's Encrypt no Nginx) |
-| 📦 **Pacotes** | `build-server` (inclui `gettext`/`msgfmt`) · `python-server` · `mysql-server` · `git-server` · `others-server` |
+| 📦 **Pacotes** | `build-server` (inclui `gettext`/`msgfmt`) · `python-server` · `node-server` (Node.js + NPM) · `mysql-server` · `git-server` · `others-server` |
 | 🗄️ **Banco de Dados** | `newbase` · `dropbase` · `mysql-start` · `mysql-stop` · `mysql-restart` |
 | 🌐 **Nginx** | `nginx-start` · `nginx-stop` · `nginx-restart` · `nginx-reload` |
 | 🧩 **Supervisor** | `supervisor-start` · `supervisor-stop` · `supervisor-restart` · `start-server` · `stop-server` · `restart-server` |
@@ -121,7 +121,7 @@ fab --list
 
 ## 🚀 Comandos de Deploy do Cliente (`client/`)
 
-Copie o arquivo `client/fabfile.py` para a raiz do seu projeto Django:
+Copie o arquivo `client/fabfile.py` para a raiz do seu projeto (**Django/Python**, **PHP** ou **NPM/Node.js**):
 
 ```bash
 cp /caminho/django-fab-server/client/fabfile.py /caminho/meu-projeto/fabfile.py
@@ -133,16 +133,27 @@ Abra o terminal na pasta do seu projeto e utilize os comandos:
 # Setup inicial do projeto no servidor (gera chaves, clona e prepara ambiente)
 fab config
 
-# Deploy completo em 1 comando (git pull, requirements, migrações, staticfiles e restart)
+# Deploy unificado (auto-detecta Python, PHP ou NPM)
 fab deploy
+
+# Ou force o deploy específico por linguagem:
+fab deploy-python   # pip install, npm build (se houver), migrate, gettext, collectstatic, supervisor restart
+fab deploy-php      # composer install, npm build (se houver), artisan (Laravel), reload php-fpm/nginx
+fab deploy-npm      # npm ci/install, npm run build, supervisor restart (SSR) ou reload nginx (SPA)
+
+# Utilitários NPM e Composer
+fab npm-install
+fab npm-build
+fab update-composer
+fab reload-php
 
 # Ativar certificado SSL gratuito (HTTPS com Let's Encrypt)
 fab enable-ssl
 
-# Criar superusuário administrador no servidor
+# Criar superusuário administrador no servidor (Django)
 fab createsuperuser
 
-# Corrigir diretivas do Supervisor (--chdir e PYTHONPATH)
+# Corrigir diretivas do Supervisor (suporta Python e Node.js)
 fab fix-supervisor
 
 # Acessar sessão SSH direta no servidor dedicado
@@ -162,12 +173,14 @@ fab manage:cmd="dbshell"
 cd server
 fab newserver
 ```
-*(Instala Nginx, MySQL/MariaDB, Python, Supervisor, Git, Gettext, Certbot e FTP).*
+*(Instala Nginx, MySQL/MariaDB, Python, Node.js, NPM, Supervisor, Git, Gettext, Certbot e FTP).*
 
 ### Passo 2: Criar a Conta do Site
 ```bash
 fab newaccount
 ```
+
+**Opção A — Python / Django:**
 ```text
 Digite o nome da conta: meudominio
 Digite o domínio do site (sem www): meudominio.com
@@ -176,8 +189,25 @@ Digite o número de uma porta livre: 8002
 Digite o nome da pasta settings/wsgi: config
 ```
 
+**Opção B — PHP:**
+```text
+Digite o nome da conta: meudominio
+Digite o domínio do site (sem www): meudominio.com
+Escolha a linguagem: 2 (PHP)
+```
+
+**Opção C — NPM / Node.js (SSR / API com Supervisor ou Frontend Estático SPA):**
+```text
+Digite o nome da conta: meudominio
+Digite o domínio do site (sem www): meudominio.com
+Escolha a linguagem: 3 (NPM)
+Tipo de aplicação NPM: 1 (Node.js SSR / API) ou 2 (Frontend Estático / SPA)
+Digite a porta (se SSR): 8070
+Comando de start (se SSR): npm run start
+```
+
 ### Passo 3: Configurar o Projeto no Servidor
-Na pasta do seu projeto Django:
+Na pasta do seu projeto (Django, PHP ou Node/NPM):
 ```bash
 fab config
 # Copie a chave SSH exibida e adicione em: GitHub > Settings > Deploy Keys
@@ -190,8 +220,8 @@ fab enable-ssl
 ## 🔒 Segurança
 
 - **Banco de Dados**: Credenciais e comandos SQL não trafegam na linha de comando (`ps aux` protegido); senhas são transmitidas via arquivos temporários protegidos por permissão `600`.
-- **Nginx**: Bloqueia arquivos ocultos (`.env`, `.git`, `.htaccess`), desabilita listagem de diretórios (`autoindex off`), aplica cabeçalhos `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`.
-- **Gunicorn / Supervisor**: Executa sob usuário Linux isolado com `--chdir` e `PYTHONPATH` dedicados.
+- **Nginx**: Bloqueia arquivos ocultos (`.env`, `.git`, `.htaccess`), desabilita listagem de diretórios (`autoindex off`), aplica cabeçalhos `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`. Suporte a WebSockets para Node.js.
+- **Gunicorn / Node.js no Supervisor**: Executa sob usuário Linux isolado com variáveis de ambiente dedicadas.
 - **SSL / HTTPS**: Renovação automática via Certbot com suporte a domínios principais e subdomínios `static` e `media`.
 
 ---
@@ -204,4 +234,4 @@ O projeto inclui suíte completa de testes com `pytest`:
 pip install pytest
 pytest
 ```
-*Cobertura: 59 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric e simulação de novas contas.*
+*Cobertura: 69 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric e simulação de novas contas Python, PHP e NPM.*
