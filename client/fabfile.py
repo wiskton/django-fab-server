@@ -121,6 +121,17 @@ def get_connection():
     return Connection(host=host, user=username)
 
 
+@functools.lru_cache(maxsize=None)
+def get_root_connection(root_user="root"):
+    """Conexão SSH como root (ou outro usuário com privilégios) para comandos que
+    exigem apt-get/systemctl/supervisorctl reread-update. Muitos servidores não têm
+    sudo sem senha configurado para o usuário do projeto (`username`) — só root, via
+    chave SSH própria — então esses comandos administrativos usam essa conexão em vez
+    de `conn.sudo(...)`, que ficaria travado pedindo senha interativa."""
+    _ensure_server_config()
+    return Connection(host=host, user=root_user)
+
+
 @contextmanager
 def remote_project():
     """Conexão posicionada dentro do diretório do projeto no servidor."""
@@ -180,8 +191,25 @@ def _bootstrap_project(conn, app_t=None):
 def install_gettext(c):
     """Instala o pacote gettext (msgfmt) no servidor Linux."""
     log("Instalando gettext no servidor")
-    conn = get_connection()
-    conn.sudo("apt-get update && apt-get install -y gettext", warn=True)
+    get_root_connection().run("apt-get update && apt-get install -y gettext", warn=True)
+
+
+@task
+def install_redis(c):
+    """Instala e habilita o Redis no servidor (broker do Celery, projetos Python)."""
+    log("Instalando Redis no servidor")
+    root = get_root_connection()
+    root.run("apt-get update && apt-get install -y redis-server", warn=True)
+    root.run("systemctl enable --now redis-server", warn=True)
+
+
+@task
+def setup_celery(c):
+    """Bootstrap completo do Celery no servidor: instala o Redis e migra o Supervisor
+    para gunicorn + worker + beat (projetos Python). Rode uma vez só — depois `fab
+    deploy`/`fab restart` já mantêm os três processos no ar."""
+    install_redis(c)
+    fix_supervisor(c, celery=True)
 
 
 @task
@@ -286,8 +314,7 @@ def update_composer(c):
 def reload_php(c):
     """Recarrega os serviços PHP-FPM e Nginx no servidor."""
     log("Recarregando serviços PHP e Nginx")
-    conn = get_connection()
-    conn.sudo("systemctl reload 'php*-fpm' || systemctl reload php-fpm || true", warn=True)
+    get_root_connection().run("systemctl reload 'php*-fpm' || systemctl reload php-fpm || true", warn=True)
     nginx_reload(c)
 
 
@@ -378,18 +405,41 @@ def server(c):
 
 @task
 def restart(c):
-    """Reinicia o processo da aplicação gerenciado pelo Supervisor."""
+    """Reinicia o processo da aplicação gerenciado pelo Supervisor (ou o grupo inteiro,
+    se o projeto Python usa Celery — ver fix-supervisor)."""
     log("Reiniciando aplicação no Supervisor")
     conn = get_connection()
-    conn.run(f"supervisorctl restart {username}")
+    result = conn.run(f"supervisorctl restart {username}:*", warn=True)
+    if result.failed:
+        conn.run(f"supervisorctl restart {username}")
+
+
+def _project_has_celery(conn, target):
+    """Detecta se o projeto usa Celery (requirements.txt ou Pipfile citando o pacote)."""
+    for reqfile in ("requirements.txt", "Pipfile"):
+        res = conn.run(f"grep -qi celery {target}/{reqfile}", warn=True, hide=True)
+        if res.ok:
+            return True
+    return False
 
 
 @task
-def fix_supervisor(c, app_type=None, port="8002", command=""):
-    """Atualiza o supervisor.ini no servidor (suporta Python e Node.js/NPM) e reinicia."""
+def fix_supervisor(c, app_type=None, port="8002", command="", celery=None):
+    """Atualiza o supervisor.ini no servidor (suporta Python, Node.js/NPM e, pra Python,
+    Celery worker+beat) e reinicia. `celery` é auto-detectado (requirements.txt/Pipfile)
+    se não for passado explicitamente (`fab fix-supervisor --celery=true/false`)."""
     t = _get_app_type(explicit_type=app_type, interactive=False)
     log(f"Atualizando /home/{username}/supervisor.ini no servidor ({t})")
     conn = get_connection()
+    target = _project_path(conn)
+
+    use_celery = False
+    if t == "python":
+        if celery is None:
+            use_celery = _project_has_celery(conn, target)
+        else:
+            use_celery = str(celery).strip().lower() in ("1", "true", "yes", "y")
+
     if t == "npm":
         cmd = command or "npm run start"
         ini_content = f"""[program:{username}]
@@ -400,6 +450,39 @@ autostart=true
 autorestart=true
 redirect_stderr=true
 environment=PORT="{port}",NODE_ENV="production",PATH="/usr/local/bin:/usr/bin:/bin",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
+"""
+    elif use_celery:
+        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} config.wsgi:application"
+        common_env = f'PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"'
+        ini_content = f"""[program:{username}]
+command={cmd}
+directory=/home/{username}/project
+user={username}
+autostart=true
+autorestart=true
+redirect_stderr=true
+environment={common_env}
+
+[program:{username}_celery_worker]
+command=/home/{username}/env/bin/celery -A config worker -l info
+directory=/home/{username}/project
+user={username}
+autostart=true
+autorestart=true
+redirect_stderr=true
+environment={common_env}
+
+[program:{username}_celery_beat]
+command=/home/{username}/env/bin/celery -A config beat -l info --schedule=/home/{username}/celerybeat-schedule.db --pidfile=/home/{username}/celerybeat.pid
+directory=/home/{username}/project
+user={username}
+autostart=true
+autorestart=true
+redirect_stderr=true
+environment={common_env}
+
+[group:{username}]
+programs={username},{username}_celery_worker,{username}_celery_beat
 """
     else:
         cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} config.wsgi:application"
@@ -413,20 +496,21 @@ redirect_stderr=true
 environment=PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
 """
     conn.run(f"cat << 'EOF' > /home/{username}/supervisor.ini\n{ini_content}\nEOF")
-    conn.sudo("supervisorctl reread", warn=True)
-    conn.sudo("supervisorctl update", warn=True)
-    conn.run(f"supervisorctl restart {username}")
-    conn.run(f"supervisorctl status {username}")
+    root = get_root_connection()
+    root.run("supervisorctl reread", warn=True)
+    root.run("supervisorctl update", warn=True)
+    target_name = f"{username}:*" if use_celery else username
+    conn.run(f"supervisorctl restart {target_name}")
+    conn.run(f"supervisorctl status {target_name}")
     log("✔ Supervisor atualizado e aplicação iniciada com sucesso!")
 
 
 @task
 def nginx_restart(c):
     """Reinicia o Nginx no servidor."""
-    conn = get_connection()
-    result = conn.sudo("systemctl restart nginx", warn=True, hide=True)
+    result = get_root_connection().run("systemctl restart nginx", warn=True, hide=True)
     if result.failed:
-        log("Não foi possível reiniciar o nginx diretamente (sem permissão sudo sem senha).")
+        log("Não foi possível reiniciar o nginx.")
     else:
         log("Nginx reiniciado com sucesso.")
 
@@ -435,8 +519,7 @@ def nginx_restart(c):
 def nginx_reload(c):
     """Recarrega as configurações do Nginx."""
     log("Recarregando Nginx")
-    conn = get_connection()
-    conn.sudo("systemctl reload nginx", warn=True)
+    get_root_connection().run("systemctl reload nginx", warn=True)
 
 
 @task
@@ -466,7 +549,7 @@ def enable_ssl(c, dominio=None, root_user="root"):
     log(f"Domínios validados no DNS: {', '.join(dominios_validos)}")
 
     # Conecta como root para operações administrativas
-    root_conn = Connection(host=host, user=root_user)
+    root_conn = get_root_connection(root_user)
     root_conn.run("apt-get update && apt-get install -y certbot python3-certbot-nginx", warn=True)
     root_conn.run(
         f"certbot --nginx --non-interactive --agree-tos --register-unsafely-without-email --expand {d_flags}"

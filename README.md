@@ -18,6 +18,7 @@ Suporta 🐧 **Ubuntu · Debian · Fedora · CentOS Stream/RHEL · Arch Linux**
 - [📜 Comandos de Provisionamento (`server/`)](#comandos-de-provisionamento-server)
 - [🚀 Comandos de Deploy do Cliente (`client/`)](#comandos-de-deploy-do-cliente-client)
 - [🌐 Exemplo: criando um site novo](#exemplo-criando-um-site-novo)
+- [⚙️ Celery (projetos Python)](#️-celery-projetos-python)
 - [🔒 Segurança](#segurança)
 - [🧪 Testes](#testes)
 - [🐳 Docker](#docker)
@@ -147,13 +148,19 @@ fab npm-build
 fab update-composer
 fab reload-php
 
+# Bootstrap do Celery no servidor (projetos Python) — Redis + supervisor.ini com
+# gunicorn + worker + beat. Detecta sozinho se o projeto usa Celery (procura o
+# pacote em requirements.txt/Pipfile); rode uma vez só
+fab setup-celery
+
 # Ativar certificado SSL gratuito (HTTPS com Let's Encrypt)
 fab enable-ssl
 
 # Criar superusuário administrador no servidor (Django)
 fab createsuperuser
 
-# Corrigir diretivas do Supervisor (suporta Python e Node.js)
+# Corrigir diretivas do Supervisor (suporta Python, Node.js e, em projetos Python
+# com Celery, gera gunicorn + worker + beat como um grupo só)
 fab fix-supervisor
 
 # Acessar sessão SSH direta no servidor dedicado
@@ -217,12 +224,32 @@ fab enable-ssl
 
 ---
 
+## ⚙️ Celery (projetos Python)
+
+`fab setup-celery` (uma vez só) instala o Redis e reconfigura o Supervisor com três
+processos num grupo só: `{conta}` (gunicorn), `{conta}_celery_worker` e
+`{conta}_celery_beat`. Detecção automática: `fab fix-supervisor` procura `celery` em
+`requirements.txt`/`Pipfile` do projeto — sem precisar passar flag nenhuma. Pra forçar
+manualmente: `fab fix-supervisor --celery=true` (ou `false`, pra voltar a gerar só o
+programa do gunicorn).
+
+Depois do bootstrap inicial, `fab deploy`/`fab restart` já reiniciam os três processos
+juntos automaticamente — `restart` detecta sozinho se o Supervisor está configurado
+como grupo (Celery) ou como programa único, sem precisar saber qual é o caso.
+
 ## 🔒 Segurança
 
 - **Banco de Dados**: Credenciais e comandos SQL não trafegam na linha de comando (`ps aux` protegido); senhas são transmitidas via arquivos temporários protegidos por permissão `600`.
 - **Nginx**: Bloqueia arquivos ocultos (`.env`, `.git`, `.htaccess`), desabilita listagem de diretórios (`autoindex off`), aplica cabeçalhos `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`. Suporte a WebSockets para Node.js.
 - **Gunicorn / Node.js no Supervisor**: Executa sob usuário Linux isolado com variáveis de ambiente dedicadas.
 - **SSL / HTTPS**: Renovação automática via Certbot com suporte a domínios principais e subdomínios `static` e `media`.
+- **Comandos administrativos sem sudo interativo**: `client/fabfile.py` não depende de
+  sudo sem senha configurado para o usuário do projeto — comandos que precisam de
+  privilégio (apt-get, systemctl, `supervisorctl reread/update`, Certbot) conectam
+  direto como `root` (`get_root_connection()`), usando a chave SSH que o `root` já tem
+  autorizada no servidor. Tudo que mexe em arquivos do projeto (git pull, pip install,
+  migrate, collectstatic) continua rodando como o usuário do projeto, sem mudar dono
+  de arquivo.
 
 ---
 
@@ -234,4 +261,4 @@ O projeto inclui suíte completa de testes com `pytest`:
 pip install pytest
 pytest
 ```
-*Cobertura: 69 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric e simulação de novas contas Python, PHP e NPM.*
+*Cobertura: 75 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric (incluindo detecção de Celery e fallback de restart) e simulação de novas contas Python, PHP e NPM.*
