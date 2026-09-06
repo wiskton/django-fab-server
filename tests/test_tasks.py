@@ -24,6 +24,7 @@ EXPECTED_PROJETO_TASKS = {
     "restart", "revert", "server", "test", "translate", "translate-remote",
     "update-requirements", "upload-public-key", "install-gettext", "show-key",
     "fix-supervisor", "enable-ssl", "install-redis", "setup-celery",
+    "health-check",
 }
 
 
@@ -100,9 +101,10 @@ def test_client_deploy_dispatches_to_specific_deployer(client_fabfile, monkeypat
 
 
 class _FakeResult:
-    def __init__(self, ok):
+    def __init__(self, ok, stdout=""):
         self.ok = ok
         self.failed = not ok
+        self.stdout = stdout
 
 
 def test_project_has_celery_detects_requirements_txt(client_fabfile):
@@ -181,3 +183,100 @@ def test_setup_celery_installs_redis_then_fixes_supervisor_with_celery_forced(cl
     client_fabfile.setup_celery(Context())
 
     assert calls == ["redis", ("supervisor", True)]
+
+
+def test_detect_domain_ignores_static_and_media_server_names(client_fabfile):
+    # ~/nginx.conf do template Python tem 3 blocos: static./media./o principal —
+    # o principal vem por último e é o único que deve ser considerado.
+    nginx_conf = (
+        "server_name static.meusite.com;\n"
+        "server_name media.meusite.com;\n"
+        "server_name meusite.com www.meusite.com;\n"
+    )
+    main_line = [
+        ln for ln in nginx_conf.splitlines()
+        if "server_name " in ln and "static." not in ln and "media." not in ln
+    ][0]
+
+    class FakeConn:
+        def run(self, cmd, warn=True, hide=True):
+            return _FakeResult(ok=True, stdout=main_line)
+
+    assert client_fabfile._detect_domain(FakeConn()) == "meusite.com"
+
+
+def test_detect_domain_strips_leading_dot_from_php_template(client_fabfile):
+    class FakeConn:
+        def run(self, cmd, warn=True, hide=True):
+            return _FakeResult(ok=True, stdout="server_name .meusite.com;")
+
+    assert client_fabfile._detect_domain(FakeConn()) == "meusite.com"
+
+
+def test_detect_domain_returns_none_when_nginx_conf_missing(client_fabfile):
+    class FakeConn:
+        def run(self, cmd, warn=True, hide=True):
+            return _FakeResult(ok=False, stdout="")
+
+    assert client_fabfile._detect_domain(FakeConn()) is None
+
+
+def test_health_check_waits_then_reports_success_on_2xx(client_fabfile, monkeypatch):
+    sleep_calls = []
+    monkeypatch.setattr("time.sleep", lambda s: sleep_calls.append(s))
+
+    calls = []
+
+    class FakeConn:
+        def run(self, cmd, warn=True, hide=True):
+            calls.append(cmd)
+            return _FakeResult(ok=True, stdout="200")
+
+    monkeypatch.setattr(client_fabfile, "get_connection", lambda: FakeConn())
+    monkeypatch.setattr(client_fabfile, "_detect_domain", lambda conn: "meusite.com")
+
+    result = client_fabfile.health_check(Context(), wait=1)
+
+    assert result is True
+    assert sleep_calls == [1]
+    assert "meusite.com" in calls[0]
+    assert "--resolve meusite.com:80:127.0.0.1" in calls[0]
+
+
+def test_health_check_reports_failure_on_non_2xx_3xx(client_fabfile, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda s: None)
+
+    class FakeConn:
+        def run(self, cmd, warn=True, hide=True):
+            return _FakeResult(ok=True, stdout="502")
+
+    monkeypatch.setattr(client_fabfile, "get_connection", lambda: FakeConn())
+    monkeypatch.setattr(client_fabfile, "_detect_domain", lambda conn: "meusite.com")
+
+    result = client_fabfile.health_check(Context(), wait=0)
+
+    assert result is False
+
+
+def test_health_check_skips_when_domain_not_detected(client_fabfile, monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda s: None)
+    monkeypatch.setattr(client_fabfile, "get_connection", lambda: object())
+    monkeypatch.setattr(client_fabfile, "_detect_domain", lambda conn: None)
+
+    result = client_fabfile.health_check(Context(), wait=0)
+
+    assert result is None
+
+
+def test_deploy_python_runs_health_check_at_the_end(client_fabfile, monkeypatch):
+    calls = []
+    for name in (
+        "pull", "push", "remote_pull", "update_requirements", "npm_build",
+        "remote_migrate_all", "translate_remote", "collectstatic", "restart",
+    ):
+        monkeypatch.setattr(client_fabfile, name, lambda c, n=name: calls.append(n))
+    monkeypatch.setattr(client_fabfile, "health_check", lambda c: calls.append("health_check"))
+
+    client_fabfile.deploy_python(Context())
+
+    assert calls[-1] == "health_check"

@@ -145,6 +145,24 @@ def log(message):
     print(f"\n{'=' * 62}\n{message}\n{'=' * 62}\n")
 
 
+def _detect_domain(conn):
+    """Lê o domínio configurado em ~/nginx.conf (gerado pelo `newaccount` do
+    django-fab-server) — evita precisar de mais uma variável pra configurar à mão.
+    Ignora os `server_name` auxiliares (static./media.) do template Python e funciona
+    também com os templates de PHP (`.dominio`) e Node.js (um `server_name` só)."""
+    res = conn.run(
+        f"grep -h 'server_name ' /home/{username}/nginx.conf 2>/dev/null "
+        "| grep -v 'static\\.' | grep -v 'media\\.' | head -1",
+        warn=True, hide=True,
+    )
+    if not res.ok or not res.stdout.strip():
+        return None
+    parts = res.stdout.strip().rstrip(";").split()
+    if len(parts) < 2:
+        return None
+    return parts[1].lstrip(".")
+
+
 def _bootstrap_project(conn, app_t=None):
     """Instala dependências e prepara o ambiente conforme a linguagem do projeto."""
     t = _get_app_type(explicit_type=app_t, conn=conn, interactive=False)
@@ -185,6 +203,46 @@ def _bootstrap_project(conn, app_t=None):
             if res_build.ok:
                 c_proj.run("npm run build")
                 c_proj.run("test -d build && (test -d dist || ln -s build dist) || true", warn=True)
+
+
+@task
+def health_check(c, wait=5, path="/"):
+    """Espera alguns segundos e confere se o site está respondendo (via Nginx, do
+    jeito que um visitante real chegaria) depois do deploy/restart. Detecta o domínio
+    sozinho a partir do ~/nginx.conf — não precisa configurar nada. Roda sozinho no
+    fim de `fab deploy`, mas também pode ser chamado à parte: `fab health-check` (ou
+    `fab health-check --wait=10 --path=/login/` pra esperar mais ou checar outra rota)."""
+    import time
+
+    conn = get_connection()
+    wait = int(wait)
+    if wait > 0:
+        log(f"Aguardando {wait}s para Nginx/Supervisor terminarem de reiniciar...")
+        time.sleep(wait)
+
+    domain = _detect_domain(conn)
+    if not domain:
+        log("AVISO: não consegui detectar o domínio em ~/nginx.conf — pulei a checagem de saúde.")
+        return None
+
+    target_path = path if path.startswith("/") else f"/{path}"
+    result = conn.run(
+        f'curl -s -o /dev/null -w "%{{http_code}}" -L -k --max-time 15 '
+        f'--resolve {domain}:80:127.0.0.1 --resolve {domain}:443:127.0.0.1 '
+        f'http://{domain}{target_path}',
+        warn=True, hide=True,
+    )
+    code = (result.stdout or "").strip()
+    ok = code[:1] in ("2", "3")
+    if ok:
+        log(f"✔ Site respondendo em {domain} (HTTP {code})")
+    else:
+        log(
+            f"✖ ATENÇÃO: {domain} respondeu HTTP '{code or '???'}' (esperado 2xx/3xx) — "
+            f'confira os logs: fab manage --cmd="..." / supervisorctl tail {username} / '
+            f"/home/{username}/logs/error.log no servidor!"
+        )
+    return ok
 
 
 @task
@@ -332,6 +390,7 @@ def deploy_python(c):
     collectstatic(c)
     restart(c)
     log("✔ Deploy Python / Django concluído com sucesso!")
+    health_check(c)
 
 
 @task
@@ -360,6 +419,7 @@ def deploy_php(c):
             c_proj.run("php artisan view:cache", warn=True)
     reload_php(c)
     log("✔ Deploy PHP concluído com sucesso!")
+    health_check(c)
 
 
 @task
@@ -378,6 +438,7 @@ def deploy_npm(c):
     else:
         nginx_reload(c)
     log("✔ Deploy NPM / Node.js concluído com sucesso!")
+    health_check(c)
 
 
 @task

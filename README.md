@@ -138,9 +138,9 @@ fab config
 fab deploy
 
 # Ou force o deploy específico por linguagem:
-fab deploy-python   # pip install, npm build (se houver), migrate, gettext, collectstatic, supervisor restart
-fab deploy-php      # composer install, npm build (se houver), artisan (Laravel), reload php-fpm/nginx
-fab deploy-npm      # npm ci/install, npm run build, supervisor restart (SSR) ou reload nginx (SPA)
+fab deploy-python   # pip install, npm build (se houver), migrate, gettext, collectstatic, supervisor restart, health-check
+fab deploy-php      # composer install, npm build (se houver), artisan (Laravel), reload php-fpm/nginx, health-check
+fab deploy-npm      # npm ci/install, npm run build, supervisor restart (SSR) ou reload nginx (SPA), health-check
 
 # Utilitários NPM e Composer
 fab npm-install
@@ -162,6 +162,12 @@ fab createsuperuser
 # Corrigir diretivas do Supervisor (suporta Python, Node.js e, em projetos Python
 # com Celery, gera gunicorn + worker + beat como um grupo só)
 fab fix-supervisor
+
+# Confere se o site está respondendo (HTTP 2xx/3xx) via Nginx, como um visitante
+# real chegaria — roda sozinho no fim de `fab deploy`, mas também dá pra chamar à
+# parte (útil pra checar de novo depois de mexer em algo manualmente no servidor)
+fab health-check
+fab health-check --wait=10 --path=/login/
 
 # Acessar sessão SSH direta no servidor dedicado
 fab login
@@ -261,4 +267,4 @@ O projeto inclui suíte completa de testes com `pytest`:
 pip install pytest
 pytest
 ```
-*Cobertura: 75 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric (incluindo detecção de Celery e fallback de restart) e simulação de novas contas Python, PHP e NPM.*
+*Cobertura: 82 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric (incluindo detecção de Celery, fallback de restart e a checagem de saúde pós-deploy) e simulação de novas contas Python, PHP e NPM.*
