@@ -388,14 +388,33 @@ def _mysql_exec(sql, password=None):
 
 
 def create_password(tamanho=12):
-    """Gera uma senha - parametro tamanho"""
-    from random import choice
+    """Gera uma senha aleatória e criptograficamente segura (módulo `secrets`, não
+    `random`) com pelo menos 12 caracteres, garantindo sempre ao menos uma letra
+    maiúscula, uma minúscula, um número e um caractere especial - em vez de sortear
+    tudo de um pool único, onde por azar podia sair uma senha sem nenhum símbolo ou
+    sem maiúscula. Os especiais usados (`!@#%^*_-+=`) evitam aspas, barra invertida,
+    `$`, `` ` `` e `&`, que podem quebrar a senha ao serem interpoladas em comandos
+    SQL/shell (ex: `CREATE USER ... IDENTIFIED BY '{senha}'`)."""
+    import secrets
 
-    caracters = "0123456789abcdefghijlmnopqrstuwvxzkABCDEFGHIJLMNOPQRSTUWVXZK_#"
-    senha = ""
-    for char in range(tamanho):
-        senha += choice(caracters)
-    return senha
+    tamanho = max(tamanho, 4)  # precisa de espaço pras 4 categorias obrigatórias
+
+    minusculas = "abcdefghijklmnopqrstuvwxyz"
+    maiusculas = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    numeros = "0123456789"
+    especiais = "!@#%^*_-+="
+    todos = minusculas + maiusculas + numeros + especiais
+
+    senha_chars = [
+        secrets.choice(minusculas),
+        secrets.choice(maiusculas),
+        secrets.choice(numeros),
+        secrets.choice(especiais),
+    ]
+    senha_chars += [secrets.choice(todos) for _ in range(tamanho - len(senha_chars))]
+
+    secrets.SystemRandom().shuffle(senha_chars)
+    return "".join(senha_chars)
 
 
 # --------------------------------------------------------

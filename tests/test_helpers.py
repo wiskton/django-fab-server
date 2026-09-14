@@ -9,7 +9,7 @@ def test_create_password_respects_length(server_fabfile):
 
 def test_create_password_uses_expected_charset(server_fabfile):
     allowed = set(
-        "0123456789abcdefghijlmnopqrstuwvxzkABCDEFGHIJLMNOPQRSTUWVXZK_#"
+        "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#%^*_-+="
     )
     senha = server_fabfile.create_password(200)
     assert set(senha) <= allowed
@@ -18,6 +18,29 @@ def test_create_password_uses_expected_charset(server_fabfile):
 def test_create_password_is_random(server_fabfile):
     passwords = {server_fabfile.create_password(16) for _ in range(20)}
     assert len(passwords) > 1
+
+
+def test_create_password_has_minimum_length(server_fabfile):
+    """tamanho < 4 é elevado pra 4, já que as 4 categorias obrigatórias precisam de espaço."""
+    assert len(server_fabfile.create_password(1)) == 4
+
+
+@pytest.mark.parametrize("tamanho", [12, 16, 20, 50])
+def test_create_password_always_has_all_character_classes(server_fabfile, tamanho):
+    """Repete várias vezes pra garantir que a mistura de categorias não depende de sorte
+    (diferente da versão antiga, que sorteava tudo de um pool único)."""
+    lower = set("abcdefghijklmnopqrstuvwxyz")
+    upper = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+    digits = set("0123456789")
+    special = set("!@#%^*_-+=")
+
+    for _ in range(50):
+        senha = server_fabfile.create_password(tamanho)
+        assert len(senha) == tamanho
+        assert any(c in lower for c in senha), senha
+        assert any(c in upper for c in senha), senha
+        assert any(c in digits for c in senha), senha
+        assert any(c in special for c in senha), senha
 
 
 @pytest.mark.parametrize("color_fn", ["green", "red", "yellow", "white"])
