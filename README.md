@@ -336,7 +336,7 @@ pip install pytest
 pytest
 ```
 
-**114 testes passando (100% de sucesso)**, cobrindo:
+**115 testes passando (100% de sucesso)**, cobrindo:
 - Autorização e rejeição de acessos indevidos no `supervisorctl-restricted`
 - Validação estrita de alvos e sanitização contra shell injection
 - Permissões de isolamento (750), sudoers (0440) e socket unix (0700)

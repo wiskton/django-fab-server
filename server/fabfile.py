@@ -1131,16 +1131,85 @@ def login(c):
 
 
 @task
-def upload_public_key(c):
-    """Faz o upload da chave ssh para o servidor (precisa de uma conexão que
-    já autentique -- veja o aviso em `fab --help upload-public-key`)"""
-    log("Adicionando chave publica no servidor", green)
-    conn = get_connection()
-    target_path = "~/.ssh/uploaded_key.pub"
-    conn.put(cfg.public_key, target_path)
-    conn.run(
-        "echo `cat ~/.ssh/uploaded_key.pub` >> ~/.ssh/authorized_keys && rm -f ~/.ssh/uploaded_key.pub"
-    )
+def upload_public_key(c, key_file=None, password=None, target_user=None):
+    """Faz o upload da chave ssh pública local para o servidor.
+
+    Se o acesso por chave ainda não estiver autorizado, solicita a senha do
+    servidor interativamente (ou aceita o argumento password).
+    Cria ~/.ssh com 0700 e ~/.ssh/authorized_keys com 0600.
+    """
+    import getpass
+    from io import BytesIO
+
+    dest_user = target_user or user
+    log("Adicionando chave pública no servidor ({0}@{1})".format(dest_user, host), green)
+
+    # 1. Localiza a chave pública local (~/.ssh/id_rsa.pub)
+    key_path = os.path.expanduser(key_file or cfg.public_key or "~/.ssh/id_rsa.pub")
+    if not os.path.exists(key_path):
+        log("ERRO: Chave pública não encontrada em: {0}".format(key_path), red)
+        return False
+
+    with open(key_path, "r", encoding="utf-8") as f:
+        pub_key_content = f.read().strip()
+
+    if not pub_key_content:
+        log("ERRO: Arquivo de chave pública vazio: {0}".format(key_path), red)
+        return False
+
+    log("Chave pública selecionada: {0}".format(key_path), yellow)
+
+    # 2. Conecta ao servidor: tenta com chave primeiro; se falhar, pede senha
+    conn = None
+    try:
+        test_conn = Connection(
+            host=host,
+            user=dest_user,
+            connect_kwargs={"key_filename": cfg.key_filename} if cfg.key_filename else {},
+        )
+        test_conn.run("true", hide=True, timeout=5)
+        conn = test_conn
+    except Exception:
+        if not password:
+            print(white("\nA chave ainda não está autorizada em {0}@{1}.".format(dest_user, host)))
+            password = getpass.getpass("Digite a senha do usuário '{0}' no servidor: ".format(dest_user))
+
+        conn = Connection(
+            host=host,
+            user=dest_user,
+            connect_kwargs={"password": password},
+        )
+
+    # 3. Garante estrutura ~/.ssh e permissões estritas (0700 e 0600)
+    conn.run("mkdir -p ~/.ssh && chmod 700 ~/.ssh")
+    conn.run("touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys")
+
+    # 4. Adiciona a chave sem duplicar
+    key_body = pub_key_content.split()[1] if len(pub_key_content.split()) > 1 else pub_key_content
+    check = conn.run("grep -F '{0}' ~/.ssh/authorized_keys".format(key_body), warn=True, hide=True)
+    if check.ok and check.stdout.strip():
+        log("A chave pública já está autorizada no servidor.", green)
+    else:
+        key_stream = BytesIO((pub_key_content + "\n").encode("utf-8"))
+        conn.put(key_stream, "/tmp/new_uploaded_key.pub")
+        conn.run("cat /tmp/new_uploaded_key.pub >> ~/.ssh/authorized_keys && rm -f /tmp/new_uploaded_key.pub")
+        conn.run("chmod 600 ~/.ssh/authorized_keys")
+        log("✔ Chave pública adicionada a ~/.ssh/authorized_keys com sucesso!", green)
+
+    # 5. Testa a conexão por chave para confirmar
+    log("Testando autenticação sem senha...", yellow)
+    priv_candidate = key_path[:-4] if key_path.endswith(".pub") else None
+    test_kwargs = {}
+    if priv_candidate and os.path.exists(priv_candidate):
+        test_kwargs["key_filename"] = priv_candidate
+    test_key = Connection(host=host, user=dest_user, connect_kwargs=test_kwargs)
+    res = test_key.run("uptime", warn=True, hide=True)
+    if res.ok:
+        log("✔ Autenticação por chave confirmada com sucesso em {0}@{1}!".format(dest_user, host), green)
+    else:
+        log("Aviso: Chave salva no servidor, mas teste direto retornou aviso.", yellow)
+
+    return True
 
 
 # RESTART
