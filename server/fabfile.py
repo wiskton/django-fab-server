@@ -1144,35 +1144,20 @@ def upload_public_key(c, key_file=None, password=None, target_user=None):
     dest_user = target_user or user
     log("Adicionando chave pública no servidor ({0}@{1})".format(dest_user, host), green)
 
-    # 1. Localiza a chave pública local existente no Windows/Linux
-    candidate_keys = []
-    if key_file:
-        candidate_keys.append(os.path.expanduser(key_file))
-    if cfg.public_key:
-        candidate_keys.append(os.path.expanduser(cfg.public_key))
-    candidate_keys.extend([
-        os.path.expanduser("~/.ssh/id_ed25519.pub"),
-        os.path.expanduser("~/.ssh/id_rsa.pub"),
-    ])
-
-    found_key_path = None
-    for k in candidate_keys:
-        if k and os.path.exists(k):
-            found_key_path = k
-            break
-
-    if not found_key_path:
-        log("ERRO: Nenhuma chave pública encontrada em: {0}".format(candidate_keys), red)
+    # 1. Localiza a chave pública local (~/.ssh/id_rsa.pub)
+    key_path = os.path.expanduser(key_file or cfg.public_key or "~/.ssh/id_rsa.pub")
+    if not os.path.exists(key_path):
+        log("ERRO: Chave pública não encontrada em: {0}".format(key_path), red)
         return False
 
-    with open(found_key_path, "r", encoding="utf-8") as f:
+    with open(key_path, "r", encoding="utf-8") as f:
         pub_key_content = f.read().strip()
 
     if not pub_key_content:
-        log("ERRO: Arquivo de chave pública vazio: {0}".format(found_key_path), red)
+        log("ERRO: Arquivo de chave pública vazio: {0}".format(key_path), red)
         return False
 
-    log("Chave pública selecionada: {0}".format(found_key_path), yellow)
+    log("Chave pública selecionada: {0}".format(key_path), yellow)
 
     # 2. Conecta ao servidor: tenta com chave primeiro; se falhar, pede senha
     conn = None
@@ -1213,7 +1198,7 @@ def upload_public_key(c, key_file=None, password=None, target_user=None):
 
     # 5. Testa a conexão por chave para confirmar
     log("Testando autenticação sem senha...", yellow)
-    priv_candidate = found_key_path[:-4] if found_key_path.endswith(".pub") else None
+    priv_candidate = key_path[:-4] if key_path.endswith(".pub") else None
     test_kwargs = {}
     if priv_candidate and os.path.exists(priv_candidate):
         test_kwargs["key_filename"] = priv_candidate

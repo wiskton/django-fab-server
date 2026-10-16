@@ -307,8 +307,8 @@ def test_deploy_python_runs_health_check_at_the_end(client_fabfile, monkeypatch)
 
 
 def test_server_upload_public_key(server_fabfile, tmp_path, monkeypatch):
-    key_file = tmp_path / "id_test.pub"
-    key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test@host\n", encoding="utf-8")
+    key_file = tmp_path / "id_rsa.pub"
+    key_file.write_text("ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC8TestKey test@host\n", encoding="utf-8")
 
     run_calls = []
     put_calls = []
@@ -331,4 +331,4 @@ def test_server_upload_public_key(server_fabfile, tmp_path, monkeypatch):
     assert any("chmod 600 ~/.ssh/authorized_keys" in c for c in run_calls)
     assert any("cat /tmp/new_uploaded_key.pub >> ~/.ssh/authorized_keys" in c for c in run_calls)
     assert len(put_calls) == 1
-    assert b"AAAAC3NzaC1lZDI1NTE5AAAAITestKey" in put_calls[0][1]
+    assert b"AAAAB3NzaC1yc2EAAAADAQABAAACAQC8TestKey" in put_calls[0][1]
