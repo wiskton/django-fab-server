@@ -304,3 +304,31 @@ def test_deploy_python_runs_health_check_at_the_end(client_fabfile, monkeypatch)
     client_fabfile.deploy_python(Context())
 
     assert calls[-1] == "health_check"
+
+
+def test_server_upload_public_key(server_fabfile, tmp_path, monkeypatch):
+    key_file = tmp_path / "id_test.pub"
+    key_file.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test@host\n", encoding="utf-8")
+
+    run_calls = []
+    put_calls = []
+
+    class FakeConn:
+        def run(self, cmd, warn=False, hide=False, timeout=None):
+            run_calls.append(cmd)
+            if "grep -F" in cmd:
+                return _FakeResult(ok=False, stdout="")
+            return _FakeResult(ok=True, stdout="")
+
+        def put(self, stream, target):
+            put_calls.append((target, stream.read()))
+
+    monkeypatch.setattr(server_fabfile, "Connection", lambda **kw: FakeConn())
+
+    ok = server_fabfile.upload_public_key(Context(), key_file=str(key_file), password="secretpassword")
+    assert ok is True
+    assert any("mkdir -p ~/.ssh" in c for c in run_calls)
+    assert any("chmod 600 ~/.ssh/authorized_keys" in c for c in run_calls)
+    assert any("cat /tmp/new_uploaded_key.pub >> ~/.ssh/authorized_keys" in c for c in run_calls)
+    assert len(put_calls) == 1
+    assert b"AAAAC3NzaC1lZDI1NTE5AAAAITestKey" in put_calls[0][1]
