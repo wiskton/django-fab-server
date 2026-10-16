@@ -2,8 +2,14 @@
 import functools
 import os
 import re
+import sys
 import uuid
 from io import BytesIO
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 from fabric import Connection, task
 from jinja2 import Environment, FileSystemLoader
@@ -76,7 +82,11 @@ cfg = Config(
 @functools.lru_cache(maxsize=1)
 def get_connection():
     """Cria (uma única vez por execução) a conexão SSH com o servidor configurado."""
-    connect_kwargs = {"key_filename": cfg.key_filename} if cfg.key_filename else {}
+    connect_kwargs = (
+        {"key_filename": os.path.expanduser(cfg.key_filename)}
+        if cfg.key_filename
+        else {}
+    )
     return Connection(host=host, user=user, connect_kwargs=connect_kwargs)
 
 
@@ -912,7 +922,7 @@ def migrate_account(c, conta=None):
 
 
 @task
-def migrate_all_projects(c):
+def migrate_all_projects(c, yes=False):
     """Detecta todos os projetos existentes em /home/* e migra cada um com segurança."""
     conn = get_connection()
     log("Descobrindo contas existentes em /home...", yellow)
@@ -933,7 +943,7 @@ def migrate_all_projects(c):
         return
 
     print("Projetos detectados para migração:\n - " + "\n - ".join(migrated))
-    if not confirm("Deseja migrar todos os projetos listados acima com backup automático?"):
+    if not yes and not confirm("Deseja migrar todos os projetos listados acima com backup automático?"):
         log("Migração cancelada.")
         return
 
