@@ -829,9 +829,11 @@ def newbase(c, conta=None, banco_senha=None):
             password=cfg.mysql_password,
         )
         _mysql_exec(
-            "GRANT ALL PRIVILEGES ON {0} . * TO '{0}'@'%'".format(conta),
+            "GRANT ALL PRIVILEGES ON `{0}`.* TO '{0}'@'%'".format(conta),
             password=cfg.mysql_password,
         )
+
+    _mysql_exec("FLUSH PRIVILEGES", password=cfg.mysql_password)
 
 
 # MYSQL - deleta o usuario e o banco de dados
@@ -852,6 +854,7 @@ def dropbase(c, conta=None):
     _mysql_exec(
         "DROP USER IF EXISTS '{0}'@'%'".format(conta), password=cfg.mysql_password
     )
+    _mysql_exec("FLUSH PRIVILEGES", password=cfg.mysql_password)
 
 
 # LINUX - deleta o usuario
