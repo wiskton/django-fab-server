@@ -127,10 +127,19 @@ def test_simulate_new_python_site_creation(server_fabfile, monkeypatch):
     for path in sql_paths + cnf_paths:
         assert any(cmd == "rm -f {0}".format(path) for cmd in recorder.sudo_calls)
 
-    # ajustou a permissão do diretório e reiniciou nginx + supervisor
+    # ajustou a permissão do diretório com isolamento estrito (750)
     assert "chown -R acmesite:acmesite /home/acmesite" in recorder.sudo_calls
-    assert "systemctl restart nginx" in recorder.sudo_calls
-    assert "systemctl restart supervisor" in recorder.sudo_calls
+    assert "chmod 750 /home/acmesite" in recorder.sudo_calls
+    assert "usermod -a -G acmesite www-data" in recorder.sudo_calls
+    assert "visudo -cf /etc/sudoers.d/acmesite" in recorder.sudo_calls
+
+    # registrou e atualizou no supervisor sem reiniciar todos os projetos
+    assert "supervisorctl reread" in recorder.sudo_calls
+    assert "supervisorctl update" in recorder.sudo_calls
+
+    # testou e recarregou nginx sem reiniciar
+    assert "nginx -t" in recorder.sudo_calls
+    assert "systemctl reload nginx" in recorder.sudo_calls
 
 
 def test_simulate_new_npm_ssr_site_creation(server_fabfile, monkeypatch):
@@ -182,10 +191,15 @@ def test_simulate_new_npm_ssr_site_creation(server_fabfile, monkeypatch):
     assert any("command=npm run start" in c for c in supervisor_contents)
     assert any('PORT="8070"' in c for c in supervisor_contents)
 
-    # ajustou permissoes e reiniciou servicos
+    # ajustou permissoes com isolamento (750) e atualizou servicos sem reiniciar globalmente
     assert "chown -R nodeapp:nodeapp /home/nodeapp" in recorder.sudo_calls
-    assert "systemctl restart nginx" in recorder.sudo_calls
-    assert "systemctl restart supervisor" in recorder.sudo_calls
+    assert "chmod 750 /home/nodeapp" in recorder.sudo_calls
+    assert "usermod -a -G nodeapp www-data" in recorder.sudo_calls
+    assert "visudo -cf /etc/sudoers.d/nodeapp" in recorder.sudo_calls
+    assert "supervisorctl reread" in recorder.sudo_calls
+    assert "supervisorctl update" in recorder.sudo_calls
+    assert "nginx -t" in recorder.sudo_calls
+    assert "systemctl reload nginx" in recorder.sudo_calls
 
 
 def test_simulate_new_npm_static_site_creation(server_fabfile, monkeypatch):
@@ -235,9 +249,12 @@ def test_simulate_new_npm_static_site_creation(server_fabfile, monkeypatch):
     ]
     assert any("root /home/reactspa/project/dist/;" in c for c in nginx_contents)
 
-    # ajustou permissoes e reiniciou servicos
+    # ajustou permissoes com isolamento e recarregou nginx de forma transparente
     assert "chown -R reactspa:reactspa /home/reactspa" in recorder.sudo_calls
-    assert "systemctl restart nginx" in recorder.sudo_calls
+    assert "chmod 750 /home/reactspa" in recorder.sudo_calls
+    assert "usermod -a -G reactspa www-data" in recorder.sudo_calls
+    assert "nginx -t" in recorder.sudo_calls
+    assert "systemctl reload nginx" in recorder.sudo_calls
 
 
 def test_simulate_new_php_site_creation(server_fabfile, monkeypatch):
@@ -287,7 +304,10 @@ def test_simulate_new_php_site_creation(server_fabfile, monkeypatch):
     assert any("root /home/phpsite/public_html/;" in c for c in nginx_contents)
     assert any("fastcgi_pass" in c for c in nginx_contents)
 
-    # ajustou permissoes e reiniciou servicos
+    # ajustou permissoes com isolamento e recarregou nginx de forma transparente
     assert "chown -R phpsite:phpsite /home/phpsite" in recorder.sudo_calls
-    assert "systemctl restart nginx" in recorder.sudo_calls
+    assert "chmod 750 /home/phpsite" in recorder.sudo_calls
+    assert "usermod -a -G phpsite www-data" in recorder.sudo_calls
+    assert "nginx -t" in recorder.sudo_calls
+    assert "systemctl reload nginx" in recorder.sudo_calls
 

@@ -432,11 +432,11 @@ def deploy_npm(c):
     npm_install(c)
     npm_build(c)
     conn = get_connection()
-    status = conn.run(f"supervisorctl status {username}", warn=True, hide=True)
-    if status.ok and "ERROR (no such process)" not in status.stdout:
+    st = conn.run(f"sudo /usr/local/bin/supervisorctl-restricted {username} status", warn=True, hide=True)
+    if st.failed:
+        st = conn.run(f"supervisorctl status {username}", warn=True, hide=True)
+    if st.ok and "ERROR (no such process)" not in st.stdout:
         restart(c)
-    else:
-        nginx_reload(c)
     log("✔ Deploy NPM / Node.js concluído com sucesso!")
     health_check(c)
 
@@ -465,14 +465,28 @@ def server(c):
 
 
 @task
+def status(c):
+    """Exibe o status dos processos da aplicação no Supervisor de forma restrita."""
+    log("Consultando status no Supervisor")
+    conn = get_connection()
+    res = conn.run(f"sudo /usr/local/bin/supervisorctl-restricted {username} status", warn=True)
+    if res.failed:
+        res = conn.run(f"supervisorctl status {username}:*", warn=True)
+        if res.failed:
+            conn.run(f"supervisorctl status {username}", warn=True)
+
+
+@task
 def restart(c):
     """Reinicia o processo da aplicação gerenciado pelo Supervisor (ou o grupo inteiro,
-    se o projeto Python usa Celery — ver fix-supervisor)."""
+    se o projeto Python usa Celery — ver fix-supervisor) de forma segura e restrita."""
     log("Reiniciando aplicação no Supervisor")
     conn = get_connection()
-    result = conn.run(f"supervisorctl restart {username}:*", warn=True)
+    result = conn.run(f"sudo /usr/local/bin/supervisorctl-restricted {username} restart", warn=True)
     if result.failed:
-        conn.run(f"supervisorctl restart {username}")
+        result = conn.run(f"supervisorctl restart {username}:*", warn=True)
+        if result.failed:
+            conn.run(f"supervisorctl restart {username}")
 
 
 def _project_has_celery(conn, target):
@@ -509,11 +523,23 @@ directory=/home/{username}/project
 user={username}
 autostart=true
 autorestart=true
-redirect_stderr=true
+startsecs=3
+startretries=3
+stopwaitsecs=10
+stopsignal=TERM
+stopasgroup=true
+killasgroup=true
+redirect_stderr=false
+stdout_logfile=/home/{username}/logs/node.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/home/{username}/logs/{username}_error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
 environment=PORT="{port}",NODE_ENV="production",PATH="/usr/local/bin:/usr/bin:/bin",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
 """
     elif use_celery:
-        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} config.wsgi:application"
+        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} --workers 3 --timeout 120 --keep-alive 5 config.wsgi:application"
         common_env = f'PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"'
         ini_content = f"""[program:{username}]
 command={cmd}
@@ -521,7 +547,19 @@ directory=/home/{username}/project
 user={username}
 autostart=true
 autorestart=true
-redirect_stderr=true
+startsecs=3
+startretries=3
+stopwaitsecs=10
+stopsignal=QUIT
+stopasgroup=true
+killasgroup=true
+redirect_stderr=false
+stdout_logfile=/home/{username}/logs/gunicorn.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/home/{username}/logs/{username}_error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
 environment={common_env}
 
 [program:{username}_celery_worker]
@@ -530,39 +568,75 @@ directory=/home/{username}/project
 user={username}
 autostart=true
 autorestart=true
-redirect_stderr=true
+startsecs=5
+startretries=3
+stopwaitsecs=30
+stopsignal=TERM
+stopasgroup=true
+killasgroup=true
+redirect_stderr=false
+stdout_logfile=/home/{username}/logs/celery_worker.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/home/{username}/logs/celery_worker_error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
 environment={common_env}
 
 [program:{username}_celery_beat]
-command=/home/{username}/env/bin/celery -A config beat -l info --schedule=/home/{username}/celerybeat-schedule.db --pidfile=/home/{username}/celerybeat.pid
+command=/home/{username}/env/bin/celery -A config beat -l info --schedule=/home/{username}/logs/celerybeat-schedule.db --pidfile=/home/{username}/logs/celerybeat.pid
 directory=/home/{username}/project
 user={username}
 autostart=true
 autorestart=true
-redirect_stderr=true
+startsecs=3
+startretries=3
+stopwaitsecs=10
+stopsignal=TERM
+stopasgroup=true
+killasgroup=true
+redirect_stderr=false
+stdout_logfile=/home/{username}/logs/celery_beat.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/home/{username}/logs/celery_beat_error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
 environment={common_env}
 
 [group:{username}]
 programs={username},{username}_celery_worker,{username}_celery_beat
 """
     else:
-        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} config.wsgi:application"
+        cmd = command or f"/home/{username}/env/bin/gunicorn --chdir /home/{username}/project --pythonpath /home/{username}/project -b 127.0.0.1:{port} --workers 3 --timeout 120 --keep-alive 5 config.wsgi:application"
         ini_content = f"""[program:{username}]
 command={cmd}
 directory=/home/{username}/project
 user={username}
 autostart=true
 autorestart=true
-redirect_stderr=true
+startsecs=3
+startretries=3
+stopwaitsecs=10
+stopsignal=QUIT
+stopasgroup=true
+killasgroup=true
+redirect_stderr=false
+stdout_logfile=/home/{username}/logs/gunicorn.log
+stdout_logfile_maxbytes=10MB
+stdout_logfile_backups=5
+stderr_logfile=/home/{username}/logs/{username}_error.log
+stderr_logfile_maxbytes=10MB
+stderr_logfile_backups=5
 environment=PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_BR.UTF-8"
 """
     conn.run(f"cat << 'EOF' > /home/{username}/supervisor.ini\n{ini_content}\nEOF")
     root = get_root_connection()
+    root.run(f"mkdir -p /etc/supervisor/conf.d && cp /home/{username}/supervisor.ini /etc/supervisor/conf.d/{username}.conf && chown root:root /etc/supervisor/conf.d/{username}.conf && chmod 644 /etc/supervisor/conf.d/{username}.conf", warn=True)
     root.run("supervisorctl reread", warn=True)
     root.run("supervisorctl update", warn=True)
-    target_name = f"{username}:*" if use_celery else username
-    conn.run(f"supervisorctl restart {target_name}")
-    conn.run(f"supervisorctl status {target_name}")
+    restart(c)
+    status(c)
     log("✔ Supervisor atualizado e aplicação iniciada com sucesso!")
 
 

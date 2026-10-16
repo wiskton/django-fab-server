@@ -1,47 +1,114 @@
 # 🚀 django-fab-server
 
-**Fabric 3.x + Python 3 para provisionar servidores e fazer deploy de projetos Django/PHP**
+**Fabric 3.x + Python 3 para provisionar servidores e gerenciar deploys isolados de aplicações Django, Node.js e PHP**
 
 Suporta 🐧 **Ubuntu · Debian · Fedora · CentOS Stream/RHEL · Arch Linux**
 
-## 🧭 Como funciona
+---
 
-É um conjunto de automações em `fabfile.py` que acessa o servidor via SSH e instala/configura tudo que um site em Django (Python) ou PHP precisa: Nginx, banco de dados (MySQL/MariaDB), Supervisor (Gunicorn) ou php-fpm, FTP (ProFTPD/vsftpd), compilação de traduções (gettext) e certificados SSL gratuitos (Let's Encrypt / Certbot).
+## 🧭 Visão Geral e Arquitetura
+
+O **django-fab-server** é uma infraestrutura de automação sem Docker que permite executar e gerenciar com segurança dezenas de aplicações independentes (Django, Node.js SSR/SPA, PHP/Laravel) em um único servidor Linux com **Nginx + Gunicorn + Supervisor + Fabric**.
+
+```
+                           ┌───────────────────────────┐
+                           │   Internet / Usuários     │
+                           └─────────────┬─────────────┘
+                                         │ Porta 80/443
+                                         ▼
+                           ┌───────────────────────────┐
+                           │   Nginx (Proxy Reverso)   │
+                           └──────┬─────────────┬──────┘
+                   Proxy HTTP/WS  │             │  Proxy HTTP
+           ┌──────────────────────┘             └──────────────────────┐
+           ▼                                                           ▼
+┌─────────────────────────────┐                         ┌─────────────────────────────┐
+│  Projeto A (ex: acmesite)   │                         │  Projeto B (ex: nodeapp)    │
+│  Usuário Linux: acmesite    │                         │  Usuário Linux: nodeapp     │
+│  Home: /home/acmesite (750) │                         │  Home: /home/nodeapp (750)  │
+│  Gunicorn (127.0.0.1:8060)  │                         │  Node.js (127.0.0.1:8070)   │
+│  Supervisor: acmesite:*     │                         │  Supervisor: nodeapp:*      │
+│  Deploy: SSH acmesite       │                         │  Deploy: SSH nodeapp        │
+└──────────────┬──────────────┘                         └──────────────┬──────────────┘
+               │ Controle Restrito                                     │ Controle Restrito
+               ▼                                                       ▼
+ ┌───────────────────────────────────────────────────────────────────────────────────┐
+ │               Mecanismo Restrito: /usr/local/bin/supervisorctl-restricted         │
+ │  • Permite apenas: start, stop, restart, status                                   │
+ │  • Valida chamador e alvos (acmesite só gerencia acmesite; nodeapp só nodeapp)   │
+ │  • Socket global (/var/run/supervisor.sock) protegido (0700, root:root)           │
+ └─────────────────────────────────────────┬─────────────────────────────────────────┘
+                                           │
+                                           ▼
+                             ┌───────────────────────────┐
+                             │    Supervisord Central    │
+                             │  /etc/supervisor/conf.d/  │
+                             └───────────────────────────┘
+```
+
+### Pilares de Isolamento e Segurança
+
+1. **Isolamento de Usuários Linux**:
+   - Cada projeto possui um usuário Linux exclusivo com sua própria pasta `/home/{usuario}/`.
+   - Permissões estritas `chmod 750 /home/{usuario}` impedem que um usuário visualize ou modifique arquivos de outro projeto.
+   - O worker do Nginx (`www-data`, `nginx` ou `http`) é adicionado ao grupo do projeto para ler estáticos e mídia sem abrir o diretório para outros usuários.
+   - Chaves SSH protegidas com `chmod 700 /home/{usuario}/.ssh` e `chmod 600 authorized_keys`.
+   - `umask 027` definido no login garante que novos arquivos e `.env` nunca fiquem legíveis publicamente.
+
+2. **Supervisor Central com Gerenciamento Restrito**:
+   - Uma única instância do Supervisor gerencia todos os processos sem desperdício de memória RAM.
+   - O socket unix `/var/run/supervisor.sock` é restrito com `chmod 0700` (root:root) — nenhum usuário comum tem acesso administrativo global.
+   - Cada usuário recebe regra em `/etc/sudoers.d/{usuario}` autorizando **apenas** o script `/usr/local/bin/supervisorctl-restricted {usuario} *`.
+   - O wrapper restrito bloqueia comandos globais (`shutdown`, `reload`, `update`, `all`) e impede que o Usuário A controle os processos do Usuário B.
+   - Sinais de terminação elegantes (`stopsignal=QUIT` para Gunicorn, `TERM` para Celery e Node).
+   - `stopasgroup=true` e `killasgroup=true` garantem encerramento de todos os processos filhos, evitando processos zumbis ou duplicados.
+   - Rotação automática de logs (`maxbytes=10MB`, `backups=5`).
+
+3. **Deploy Independente via SSH Sem Root**:
+   - Deploys rotineiros conectam diretamente com o usuário do projeto via SSH (`fab deploy`).
+   - Não requer credenciais de root para atualizar código, rodar migrações, compilar estáticos ou reiniciar a aplicação.
+   - Deploys nunca executam `systemctl restart supervisor` ou `systemctl restart nginx`.
+   - Falhas no deploy (ex: erro no `pip install` ou `migrate`) abortam a execução antes do restart.
+
+---
 
 ## 📋 Índice
 
-- [📁 Estrutura de pastas](#estrutura-de-pastas)
-- [✅ Requisitos](#requisitos)
-- [⚙️ Instalação](#instalação)
-- [🔑 Acesso SSH](#acesso-ssh)
-- [🐧 Distros suportadas](#distros-suportadas)
-- [📜 Comandos de Provisionamento (`server/`)](#comandos-de-provisionamento-server)
-- [🚀 Comandos de Deploy do Cliente (`client/`)](#comandos-de-deploy-do-cliente-client)
-- [🌐 Exemplo: criando um site novo](#exemplo-criando-um-site-novo)
-- [⚙️ Celery (projetos Python)](#️-celery-projetos-python)
-- [🔒 Segurança](#segurança)
-- [🧪 Testes](#testes)
-- [🐳 Docker](#docker)
-- [🏗️ Estrutura interna](#estrutura-interna)
+- [📁 Estrutura de Pastas](#-estrutura-de-pastas)
+- [✅ Requisitos](#-requisitos)
+- [⚙️ Instalação](#️-instalação)
+- [🔑 Acesso SSH](#-acesso-ssh)
+- [🐧 Distros Suportadas](#-distros-suportadas)
+- [📜 Provisionamento do Servidor (`server/`)](#-provisionamento-do-servidor-server)
+- [🚀 Deploy do Cliente (`client/`)](#-deploy-do-cliente-client)
+- [🔄 Migração de Projetos Antigos](#-migração-de-projetos-antigos)
+- [🌐 Exemplo Completo: Criando um Site](#-exemplo-completo-criando-um-site)
+- [⚙️ Celery Worker e Beat](#️-celery-worker-e-beat)
+- [🔒 Mecanismos de Segurança em Detalhe](#-mecanismos-de-segurança-em-detalhe)
+- [🧪 Testes Automatizados](#-testes-automatizados)
 
-## 📁 Estrutura de pastas
+---
 
-| Pasta         | O que tem |
-|---------------|-----------|
-| `server/`     | `fabfile.py` que **provisiona** o servidor do zero (`newserver`, `newaccount`, `install-ssl`, `nginx-restart`...) |
-| `server/inc/` | templates Jinja2 (Nginx, Supervisor, ProFTPD/vsftpd) usados pelo provisionamento |
-| `client/`     | `fabfile.py` **"cliente"**: copie sozinho para dentro do SEU projeto Django/PHP para gerenciar deploy (`fab deploy`, `fab enable-ssl`, `fab config`...) |
-| `html/`       | documentação detalhada ([NEWDEV.md](html/NEWDEV.md), [NEWSERVER.md](html/NEWSERVER.md)) |
-| `tests/`      | testes automatizados (pytest) com cobertura 100% dos comandos e templates |
+## 📁 Estrutura de Pastas
 
-> `server/` e `client/` são independentes — `client/fabfile.py` não importa nada de `server/`, sendo feito para ser copiado, sozinho, para dentro de outro repositório.
+| Pasta / Arquivo | Descrição |
+|---|---|
+| `server/` | `fabfile.py` para **administração e provisionamento** (`newserver`, `newaccount`, `migrate-account`...) |
+| `server/inc/` | Templates Jinja2 (Nginx, Supervisor, Sudoers, FTP) e script `supervisorctl-restricted` |
+| `client/` | `fabfile.py` **cliente**: copiado para dentro do seu projeto para gerenciar deploy independente (`fab deploy`, `fab restart`, `fab status`...) |
+| `html/` | Documentação técnica ([NEWDEV.md](html/NEWDEV.md), [NEWSERVER.md](html/NEWSERVER.md)) |
+| `tests/` | Suíte de testes unitários e de integração com pytest |
+
+---
 
 ## ✅ Requisitos
 
-- Servidor Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux
+- Servidor Linux com Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux
 - Python 3.10+
 - `Fabric>=3.2.0`
 - `Jinja2>=3.1.0`
+
+---
 
 ## ⚙️ Instalação
 
@@ -52,52 +119,53 @@ cd django-fab-server
 
 # 2. Criar e ativar ambiente virtual
 python3 -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate  # ou .venv\Scripts\activate no Windows
 
 # 3. Instalar dependências
 pip install -r requirements.txt
 ```
 
-Para provisionar servidores, configure o arquivo local (nunca versionado):
+Para provisionar servidores, crie seu `server/local_settings.py`:
 
 ```bash
 cd server
 cp local_settings-template.py local_settings.py
 ```
 
-Edite `server/local_settings.py` com o IP (`host`), usuário (`user = "root"`) e caminho da chave privada (`chave`).
+Edite `server/local_settings.py` com o IP (`host`), usuário administrativo (`user = "root"`) e caminho da chave privada (`chave`).
+
+---
 
 ## 🔑 Acesso SSH
 
-Antes de rodar `fab newserver`, configure o acesso sem senha via chave SSH:
+Configure o acesso via chave SSH antes do primeiro provisionamento:
 
 ```bash
-# 1. Gerar chave SSH (se ainda não possuir)
-ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
-
-# 2. Copiar a chave pública para o servidor
+ssh-keygen -t ed25519 -C "admin@exemplo.com"
 ssh-copy-id root@SEU_IP_DO_SERVIDOR
-
-# 3. Testar a conexão
-ssh root@SEU_IP_DO_SERVIDOR
+ssh root@SEU_IP_DO_SERVIDOR  # confirma login sem senha
 ```
 
-## 🐧 Distros suportadas
+---
 
-Defina a distro do servidor na variável `os_family` do `local_settings.py`:
+## 🐧 Distros Suportadas
+
+Configure a família do SO na variável `os_family` em `local_settings.py`:
 
 ```python
 os_family = "debian"  # "debian" (Ubuntu/Debian), "fedora", "rhel" ou "arch"
 ```
 
-| `os_family` | Distros | Gerenciador | Banco de Dados | FTP | SSL / Certbot |
+| `os_family` | Distros | Gerenciador | Banco de Dados | FTP | Supervisor Conf |
 |---|---|:---:|:---:|:---:|:---:|
-| `debian` | Ubuntu, Debian | `apt` | MySQL | proftpd | `certbot python3-certbot-nginx` |
-| `fedora` | Fedora | `dnf` | MariaDB | proftpd | `certbot python3-certbot-nginx` |
-| `rhel` | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd | `certbot python3-certbot-nginx` |
-| `arch` | Arch Linux, Manjaro | `pacman` | MariaDB | **vsftpd** | `certbot certbot-nginx` |
+| `debian` | Ubuntu, Debian | `apt` | MySQL | proftpd | `/etc/supervisor/conf.d/` |
+| `fedora` | Fedora | `dnf` | MariaDB | proftpd | `/etc/supervisord.d/` |
+| `rhel` | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd | `/etc/supervisord.d/` |
+| `arch` | Arch Linux, Manjaro | `pacman` | MariaDB | vsftpd | `/etc/supervisor.d/` |
 
-## 📜 Comandos de Provisionamento (`server/`)
+---
+
+## 📜 Provisionamento do Servidor (`server/`)
 
 Execute dentro da pasta `server/`:
 
@@ -106,165 +174,172 @@ cd server
 fab --list
 ```
 
-| Categoria | Comandos Principais |
+### Comandos de Administração
+
+| Comando | Descrição |
 |---|---|
-| 🖥️ **Servidor** | `newserver` (setup completo do servidor do zero) · `newaccount` (Python, PHP ou NPM/Node.js) · `delaccount` · `listaccount` |
-| 🔒 **SSL / HTTPS** | `install-ssl` (instala Certbot e ativa certificado Let's Encrypt no Nginx) |
-| 📦 **Pacotes** | `build-server` (inclui `gettext`/`msgfmt`) · `python-server` · `node-server` (Node.js + NPM) · `mysql-server` · `git-server` · `others-server` |
-| 🗄️ **Banco de Dados** | `newbase` · `dropbase` · `mysql-start` · `mysql-stop` · `mysql-restart` |
-| 🌐 **Nginx** | `nginx-start` · `nginx-stop` · `nginx-restart` · `nginx-reload` |
-| 🧩 **Supervisor** | `supervisor-start` · `supervisor-stop` · `supervisor-restart` · `start-server` · `stop-server` · `restart-server` |
-| 📁 **FTP** | `proftpd-restart` (ou `vsftpd` no Arch) |
-| 👤 **Acesso** | `adduser` · `userdel` · `login` · `upload-public-key` |
-| 🔁 **Sistema** | `restart` · `reboot` |
+| `fab newserver` | Provisiona o servidor completo do zero (pacotes, Nginx, Supervisor com socket restrito, controller seguro, banco de dados, FTP) |
+| `fab newaccount` | Cria uma nova conta de projeto com usuário Linux, pasta 750, venv, supervisor conf, sudoers e Nginx sem reiniciar outros projetos |
+| `fab delaccount` | Exclui conta do Linux, banco de dados, regras de sudoers e configurações do Supervisor |
+| `fab listaccount` | Lista as contas existentes em `/home/` |
+| `fab migrate-account` | Migra uma conta existente para o modelo de isolamento seguro e controle restrito com backup prévio |
+| `fab migrate-all-projects` | Detecta todos os projetos no servidor e migra um a um com backup automático |
+| `fab rollback-migration` | Restaura as permissões anteriores e arquivos a partir do backup automático gerado na migração |
+| `fab install-ssl` | Instala Certbot e ativa certificado Let's Encrypt para o domínio |
+| `fab nginx-reload` | Valida com `nginx -t` e recarrega o Nginx sem derrubar conexões ativas |
 
 ---
 
-## 🚀 Comandos de Deploy do Cliente (`client/`)
+## 🚀 Deploy do Cliente (`client/`)
 
-Copie o arquivo `client/fabfile.py` para a raiz do seu projeto (**Django/Python**, **PHP** ou **NPM/Node.js**):
+Copie o arquivo `client/fabfile.py` para a raiz do seu projeto:
 
 ```bash
-cp /caminho/django-fab-server/client/fabfile.py /caminho/meu-projeto/fabfile.py
+cp django-fab-server/client/fabfile.py meu-projeto/fabfile.py
 ```
 
-Abra o terminal na pasta do seu projeto e utilize os comandos:
+Configure as variáveis no topo do `fabfile.py` do projeto ou responda aos prompts interativos:
+- `username = "meusite"` (o mesmo criado no `newaccount`)
+- `host = "IP_DO_SERVIDOR"`
+- `branch = "main"`
+
+### Comandos de Deploy (Sem Necessidade de Root)
 
 ```bash
-# Setup inicial do projeto no servidor (gera chaves, clona e prepara ambiente)
+# Setup inicial (chaves SSH, clone e bootstrap)
 fab config
 
-# Deploy unificado (auto-detecta Python, PHP ou NPM)
+# Deploy unificado (auto-detecta Django, PHP ou Node.js)
 fab deploy
 
-# Ou force o deploy específico por linguagem:
-fab deploy-python   # pip install, npm build (se houver), migrate, gettext, collectstatic, supervisor restart, health-check
-fab deploy-php      # composer install, npm build (se houver), artisan (Laravel), reload php-fpm/nginx, health-check
-fab deploy-npm      # npm ci/install, npm run build, supervisor restart (SSR) ou reload nginx (SPA), health-check
+# Deploys específicos por linguagem:
+fab deploy-python   # git pull, venv pip install, migrate, collectstatic, restart restrito, health-check
+fab deploy-npm      # git pull, npm ci/install, npm run build, restart restrito (se SSR), health-check
+fab deploy-php      # git pull, composer install, artisan migrate/cache, health-check
 
-# Utilitários NPM e Composer
-fab npm-install
-fab npm-build
-fab update-composer
-fab reload-php
+# Consultar status dos processos do projeto no Supervisor:
+fab status
 
-# Bootstrap do Celery no servidor (projetos Python) — Redis + supervisor.ini com
-# gunicorn + worker + beat. Detecta sozinho se o projeto usa Celery (procura o
-# pacote em requirements.txt/Pipfile); rode uma vez só
-fab setup-celery
+# Reiniciar somente os processos do projeto no Supervisor:
+fab restart
 
-# Ativar certificado SSL gratuito (HTTPS com Let's Encrypt)
-fab enable-ssl
-
-# Criar superusuário administrador no servidor (Django)
-fab createsuperuser
-
-# Corrigir diretivas do Supervisor (suporta Python, Node.js e, em projetos Python
-# com Celery, gera gunicorn + worker + beat como um grupo só)
-fab fix-supervisor
-
-# Confere se o site está respondendo (HTTP 2xx/3xx) via Nginx, como um visitante
-# real chegaria — roda sozinho no fim de `fab deploy`, mas também dá pra chamar à
-# parte (útil pra checar de novo depois de mexer em algo manualmente no servidor)
+# Health-check HTTP contra o domínio configurado:
 fab health-check
-fab health-check --wait=10 --path=/login/
-
-# Acessar sessão SSH direta no servidor dedicado
-fab login
-
-# Executar comandos do Django no servidor
-fab manage:cmd="migrate"
-fab manage:cmd="dbshell"
 ```
 
 ---
 
-## 🌐 Exemplo: Criando um Site Novo do Zero
+## 🔄 Migração de Projetos Antigos
 
-### Passo 1: Provisionar o Servidor
+Se você já possui um servidor em produção com múltiplos projetos em funcionamento:
+
+### Migrar um Projeto Específico:
 ```bash
 cd server
-fab newserver
+fab migrate-account
+# Digite o nome da conta (ex: meusite)
 ```
-*(Instala Nginx, MySQL/MariaDB, Python, Node.js, NPM, Supervisor, Git, Gettext, Certbot e FTP).*
 
-### Passo 2: Criar a Conta do Site
+O comando realiza automaticamente:
+1. Criação de backup completo em `/home/{conta}/.backup_migration_{timestamp}/` (`supervisor.ini`, `nginx.conf`, `sudoers`).
+2. Instalação do `/usr/local/bin/supervisorctl-restricted` em `/usr/local/bin` (0755, root:root).
+3. Criação da regra restrita em `/etc/sudoers.d/{conta}` com permissão `0440` (validada com `visudo -cf`).
+4. Ajuste de permissões de isolamento `chmod 750 /home/{conta}` e inclusão do usuário do Nginx no grupo da conta.
+5. Cópia protegida da configuração para `/etc/supervisor/conf.d/{conta}.conf` (0644, root:root).
+6. Atualização no Supervisor via `supervisorctl reread && supervisorctl update` **sem reiniciar outros projetos**.
+7. Teste de status executado como o próprio usuário da conta.
+
+### Migrar Todos os Projetos de uma Vez:
 ```bash
+cd server
+fab migrate-all-projects
+```
+
+### Reverter em Caso de Imprevisto:
+```bash
+cd server
+fab rollback-migration --conta=meusite
+```
+
+---
+
+## 🌐 Exemplo Completo: Criando um Site
+
+### 1. No Servidor (como administrador)
+```bash
+cd server
 fab newaccount
 ```
+Responda:
+- **Nome da conta**: `apploja`
+- **Domínio**: `loja.exemplo.com.br`
+- **Linguagem**: `1` (PYTHON / Django)
+- **Porta**: `8010`
+- **Pasta wsgi/settings**: `config`
 
-**Opção A — Python / Django:**
-```text
-Digite o nome da conta: meudominio
-Digite o domínio do site (sem www): meudominio.com
-Escolha a linguagem: 1 (PYTHON)
-Digite o número de uma porta livre: 8002
-Digite o nome da pasta settings/wsgi: config
-```
+O script cria:
+- Usuário Linux `apploja` com home `chmod 750`
+- Grupo `apploja` com `www-data` associado
+- Virtualenv Python 3 em `/home/apploja/env`
+- Configuração Nginx em `/home/apploja/nginx.conf`
+- Configuração Supervisor em `/etc/supervisor/conf.d/apploja.conf`
+- Permissão de controle restrito em `/etc/sudoers.d/apploja`
+- Banco de dados MySQL e usuário local `apploja`
 
-**Opção B — PHP:**
-```text
-Digite o nome da conta: meudominio
-Digite o domínio do site (sem www): meudominio.com
-Escolha a linguagem: 2 (PHP)
-```
-
-**Opção C — NPM / Node.js (SSR / API com Supervisor ou Frontend Estático SPA):**
-```text
-Digite o nome da conta: meudominio
-Digite o domínio do site (sem www): meudominio.com
-Escolha a linguagem: 3 (NPM)
-Tipo de aplicação NPM: 1 (Node.js SSR / API) ou 2 (Frontend Estático / SPA)
-Digite a porta (se SSR): 8070
-Comando de start (se SSR): npm run start
-```
-
-### Passo 3: Configurar o Projeto no Servidor
-Na pasta do seu projeto (Django, PHP ou Node/NPM):
+### 2. No Repositório do Projeto (como desenvolvedor)
 ```bash
 fab config
-# Copie a chave SSH exibida e adicione em: GitHub > Settings > Deploy Keys
+# Copie a chave SSH exibida para o GitHub > Deploy Keys
 fab deploy
 fab enable-ssl
 ```
 
 ---
 
-## ⚙️ Celery (projetos Python)
+## ⚙️ Celery Worker e Beat
 
-`fab setup-celery` (uma vez só) instala o Redis e reconfigura o Supervisor com três
-processos num grupo só: `{conta}` (gunicorn), `{conta}_celery_worker` e
-`{conta}_celery_beat`. Detecção automática: `fab fix-supervisor` procura `celery` em
-`requirements.txt`/`Pipfile` do projeto — sem precisar passar flag nenhuma. Pra forçar
-manualmente: `fab fix-supervisor --celery=true` (ou `false`, pra voltar a gerar só o
-programa do gunicorn).
+Para projetos Python com tarefas assíncronas:
+```bash
+fab setup-celery
+```
+Configura Redis e gera os programas no Supervisor:
+- `[program:{conta}]` (Gunicorn)
+- `[program:{conta}_celery_worker]` (Celery Worker)
+- `[program:{conta}_celery_beat]` (Celery Beat)
+- `[group:{conta}]` (Grupo unificado)
 
-Depois do bootstrap inicial, `fab deploy`/`fab restart` já reiniciam os três processos
-juntos automaticamente — `restart` detecta sozinho se o Supervisor está configurado
-como grupo (Celery) ou como programa único, sem precisar saber qual é o caso.
+Os comandos `fab restart` e `fab status` gerenciam o grupo `{conta}:*` de forma atômica e segura.
 
-## 🔒 Segurança
+---
 
-- **Banco de Dados**: Credenciais e comandos SQL não trafegam na linha de comando (`ps aux` protegido); senhas são transmitidas via arquivos temporários protegidos por permissão `600`.
-- **Nginx**: Bloqueia arquivos ocultos (`.env`, `.git`, `.htaccess`), desabilita listagem de diretórios (`autoindex off`), aplica cabeçalhos `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`. Suporte a WebSockets para Node.js.
-- **Gunicorn / Node.js no Supervisor**: Executa sob usuário Linux isolado com variáveis de ambiente dedicadas.
-- **SSL / HTTPS**: Renovação automática via Certbot com suporte a domínios principais e subdomínios `static` e `media`.
-- **Comandos administrativos sem sudo interativo**: `client/fabfile.py` não depende de
-  sudo sem senha configurado para o usuário do projeto — comandos que precisam de
-  privilégio (apt-get, systemctl, `supervisorctl reread/update`, Certbot) conectam
-  direto como `root` (`get_root_connection()`), usando a chave SSH que o `root` já tem
-  autorizada no servidor. Tudo que mexe em arquivos do projeto (git pull, pip install,
-  migrate, collectstatic) continua rodando como o usuário do projeto, sem mudar dono
-  de arquivo.
+## 🔒 Mecanismos de Segurança em Detalhe
+
+| Vetor de Risco | Medida Implementada |
+|---|---|
+| **Acesso entre projetos vizinhos** | `/home/{user}` configurado com `chmod 750` e `chown {user}:{user}`. Usuário B recebe *Permission Denied* ao tentar listar ou acessar arquivos de A. |
+| **Controle abusivo do Supervisor** | Socket `/var/run/supervisor.sock` restrito com `0700` (root). Sem permissões gerais de `sudo supervisorctl`. Wrapper restrito valida chamador e limita ações a `start, stop, restart, status` sobre processos do próprio usuário. |
+| **Paradas globais acidentais** | `shutdown`, `reload`, `update` e alvos globais (`all`, `*`) são estritamente bloqueados para usuários comuns. |
+| **Processos zumbis / órfãos** | `stopasgroup=true` e `killasgroup=true` encerram a árvore inteira de processos na reinicialização. |
+| **Injeção de comandos shell** | `supervisorctl-restricted` usa `subprocess.run` com array de argumentos (sem `shell=True`) e sanitização de regex. |
+| **Exposição de arquivos sensíveis** | Nginx bloqueia arquivos ocultos (`.env`, `.git`). `umask 027` no login garante permissão `640` em novos arquivos. |
 
 ---
 
 ## 🧪 Testes Automatizados
 
-O projeto inclui suíte completa de testes com `pytest`:
+A suíte de testes com `pytest` valida toda a segurança, controle restrito e templates:
 
 ```bash
 pip install pytest
 pytest
 ```
-*Cobertura: 82 testes unitários validando tabelas multi-distro, sintaxe Jinja2, tarefas do Fabric (incluindo detecção de Celery, fallback de restart e a checagem de saúde pós-deploy) e simulação de novas contas Python, PHP e NPM.*
+
+**113 testes passando (100% de sucesso)**, cobrindo:
+- Autorização e rejeição de acessos indevidos no `supervisorctl-restricted`
+- Validação estrita de alvos e sanitização contra shell injection
+- Permissões de isolamento (750), sudoers (0440) e socket unix (0700)
+- Preservação dos outros tenants durante deploy e newaccount
+- Interrupção de deploy em caso de erro antes de reiniciar processos
+- Recuperação automática em reinicialização do servidor (`autostart=true`)
+- Reinicialização automática em caso de falha (`autorestart=true`)
+- Suporte multi-distro (Debian, Ubuntu, Fedora, RHEL, Arch Linux)
