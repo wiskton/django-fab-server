@@ -1,0 +1,179 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+supervisorctl-restricted: Controlador seguro e restrito do Supervisor.
+Permite que cada usuário/projeto gerencie exclusivamente seus próprios processos
+(start, stop, restart, status), sem acesso administrativo global ao Supervisor
+e sem conceder permissões gerais de sudo supervisorctl.
+
+Uso:
+    supervisorctl-restricted <conta> <ação> [alvo]
+    supervisorctl-restricted <ação> [alvo]  (quando executado via sudo pelo próprio usuário)
+
+Ações permitidas:
+    start, stop, restart, status
+
+Alvos permitidos para a conta 'exemplo':
+    exemplo, exemplo:*, exemplo_gunicorn, exemplo_worker, exemplo_beat, exemplo_node, exemplo:*
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+try:
+    import pwd
+except ImportError:
+    pwd = None
+
+ALLOWED_ACTIONS = {"start", "stop", "restart", "status"}
+VALID_NAME_RE = re.compile(r"^[a-zA-Z0-9_-]{1,32}$")
+VALID_TARGET_RE = re.compile(r"^[a-zA-Z0-9_:-]+(?:\:\*)?$")
+
+
+def get_calling_user():
+    """Identifica o usuário real que invocou o comando (mesmo sob sudo)."""
+    sudo_user = os.environ.get("SUDO_USER")
+    if sudo_user:
+        return sudo_user.strip()
+    if pwd is not None:
+        try:
+            return pwd.getpwuid(os.getuid()).pw_name
+        except Exception:
+            pass
+    return os.environ.get("USER", os.environ.get("USERNAME", "unknown"))
+
+
+def is_valid_project_name(name):
+    """Valida se o nome do projeto/usuário segue o padrão seguro."""
+    return bool(name and VALID_NAME_RE.match(name))
+
+
+def is_target_allowed(project_name, target):
+    """Verifica se o alvo especificado pertence estritamente ao projeto.
+
+    Alvos permitidos para 'meusite':
+      - meusite
+      - meusite:*
+      - meusite_gunicorn
+      - meusite_worker
+      - meusite_beat
+      - meusite_node
+      - meusite:qualquer_subprocesso
+
+    Alvos proibidos:
+      - all
+      - *
+      - outrousuario
+      - outrousuario:*
+      - qualquer coisa que não inicie com o prefixo do projeto
+    """
+    if not target or not isinstance(target, str):
+        return False
+
+    target = target.strip()
+    if not VALID_TARGET_RE.match(target):
+        return False
+
+    if target in ("all", "*"):
+        return False
+
+    if target == project_name:
+        return True
+
+    if target == f"{project_name}:*":
+        return True
+
+    if target.startswith(f"{project_name}_"):
+        return True
+
+    if target.startswith(f"{project_name}:"):
+        return True
+
+    return False
+
+
+def run_supervisorctl(action, target):
+    """Executa o comando supervisorctl de forma segura, sem shell=True."""
+    cmd = ["supervisorctl", action, target]
+    try:
+        result = subprocess.run(cmd, check=False)
+        return result.returncode
+    except FileNotFoundError:
+        sys.stderr.write("ERRO: supervisorctl não foi encontrado no PATH do sistema.\n")
+        return 127
+    except Exception as exc:
+        sys.stderr.write(f"ERRO ao executar supervisorctl: {exc}\n")
+        return 1
+
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+
+    if not argv or argv[0] in ("-h", "--help", "help"):
+        sys.stdout.write(
+            "Uso: supervisorctl-restricted <conta> <start|stop|restart|status> [alvo]\n"
+            "  ou: supervisorctl-restricted <start|stop|restart|status> [alvo]\n"
+        )
+        return 0
+
+    calling_user = get_calling_user()
+
+    # Detecta se o primeiro argumento é a ação (usuário omitido)
+    if argv[0].lower() in ALLOWED_ACTIONS:
+        project_user = calling_user
+        action = argv[0].lower()
+        target = argv[1] if len(argv) > 1 else None
+    else:
+        project_user = argv[0]
+        if len(argv) < 2:
+            sys.stderr.write("ERRO: Ação não informada (start, stop, restart, status).\n")
+            return 2
+        action = argv[1].lower()
+        target = argv[2] if len(argv) > 2 else None
+
+    # Validação do nome do projeto
+    if not is_valid_project_name(project_user):
+        sys.stderr.write(f"ERRO: Nome de conta/projeto inválido: '{project_user}'.\n")
+        return 2
+
+    # Verificação de autorização do chamador
+    if calling_user != "root" and calling_user != project_user:
+        sys.stderr.write(
+            f"ERRO DE SEGURANÇA: Usuário '{calling_user}' não tem permissão para gerenciar "
+            f"processos da conta '{project_user}'.\n"
+        )
+        return 13
+
+    # Validação da ação
+    if action not in ALLOWED_ACTIONS:
+        sys.stderr.write(
+            f"ERRO: Ação '{action}' não permitida. Ações válidas: {', '.join(sorted(ALLOWED_ACTIONS))}.\n"
+        )
+        return 2
+
+    # Se nenhum alvo foi especificado, tenta primeiro o grupo ({project_user}:*)
+    # e se não for aplicável, cai para o programa individual ({project_user}).
+    if not target:
+        # Tenta grupo {project_user}:*
+        code = run_supervisorctl(action, f"{project_user}:*")
+        if code != 0:
+            # Fallback para programa individual {project_user}
+            code = run_supervisorctl(action, project_user)
+        return code
+
+    # Se um alvo específico foi informado, valida estritamente
+    if not is_target_allowed(project_user, target):
+        sys.stderr.write(
+            f"ERRO DE SEGURANÇA: Alvo '{target}' não pertence à conta '{project_user}'. "
+            f"Operação cancelada.\n"
+        )
+        return 13
+
+    return run_supervisorctl(action, target)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

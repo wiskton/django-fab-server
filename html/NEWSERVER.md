@@ -1,141 +1,101 @@
-Utilizando script para Servidor
-=================
+Provisionamento de Servidor Seguro e Isolado
+=============================================
 
-<p>Instala e configura todos os pacotes necessários para configurar um servidor com Python/Django, PHP e NPM (Node.js) + Nginx + Supervisor em Ubuntu, Debian, Fedora, CentOS Stream/RHEL ou Arch Linux.</p>
+Instala e configura todos os pacotes e configurações de segurança necessários para executar múltiplas aplicações Django (Python), Node.js e PHP em um único servidor Linux, com Nginx, Gunicorn, Supervisor e isolamento estrito por usuário.
 
+Suporta **Ubuntu**, **Debian**, **Fedora**, **CentOS Stream/RHEL** e **Arch Linux**.
 
-Os comandos abaixo rodam de dentro da pasta `server/` deste repositório.
-Alterar as configurações copiando `server/local_settings-template.py` para
-`server/local_settings.py`:
+---
+
+### Configuração Inicial
+
+Os comandos abaixo devem ser executados a partir da pasta `server/` deste repositório.
+Crie seu arquivo de configuração local a partir do template:
+
+    cd server
+    cp local_settings-template.py local_settings.py
+
+Edite `server/local_settings.py`:
 
     user = 'root'
-    host = '192.168.1.111'
-    os_family = 'debian'  # ou 'fedora', 'rhel', 'arch' -- veja o README
+    host = 'IP_DO_SERVIDOR'
+    chave = '~/.ssh/id_ed25519'  # caminho da sua chave privada
+    os_family = 'debian'        # 'debian', 'fedora', 'rhel' ou 'arch'
 
+Garanta que sua chave pública SSH esteja autorizada no servidor:
 
-**Antes de rodar `fab newserver`**, garanta que sua chave SSH já está
-configurada e autentica no servidor sem pedir senha (o Fabric não sabe pedir
-senha sozinho). Se ainda não tem chave para esse servidor:
+    ssh-copy-id root@IP_DO_SERVIDOR
+    ssh root@IP_DO_SERVIDOR  # deve autenticar sem pedir senha interativa
 
-    ssh-keygen -t ed25519 -C "seu-email@exemplo.com"
-    ssh-copy-id root@SEU_IP_DO_SERVIDOR
-    ssh root@SEU_IP_DO_SERVIDOR   # deve logar sem pedir senha
+---
 
-Se mesmo assim `fab newserver`/`fab login` der erro de autenticação, rode
-`ssh -v root@SEU_IP_DO_SERVIDOR` para ver o motivo real (chave errada sendo
-oferecida, permissão de `authorized_keys` no servidor, login de root
-desabilitado...).
+### Provisionar o Servidor do Zero
 
-Veja a seção [🔑 Acesso SSH do README](../README.md#acesso-ssh) para mais
-detalhes (inclusive por que `fab upload-public-key` não serve para esse
-primeiro acesso).
-
-
-Configura um novo servidor instalando todos pacotes necessários:
+Instala todos os pacotes (build, python, node, nginx, mysql/mariadb, supervisor, certbot, ftp) e configura o Supervisor seguro (socket unix 0700):
 
     cd server
     fab newserver
 
-Reiniciar nginx e supervisor
+---
 
-    fab restart
+### Criar uma Nova Conta de Projeto
 
-
-<h3>Contas</h3>
-
-<p>Cria um usuário e banco por site para deixar separado as estruturas, pois cada site tem suas senhas e em caso de invasão só terão acesso a um projeto e não a todos. Suporta <strong>1) PYTHON</strong>, <strong>2) PHP</strong> e <strong>3) NPM (Node.js)</strong>.</p>
-
-Criar uma nova conta no servidor:
+Cria usuário Linux exclusivo com permissões restritas (750), virtualenv, configurações Nginx e Supervisor, regras mínimas em sudoers e banco de dados:
 
     fab newaccount
 
+Durante a execução:
+1. Digite o nome da conta (ex: `meusite`).
+2. Digite o domínio (ex: `meusite.com.br`).
+3. Escolha a linguagem:
+   - `1` para **Python / Django** (solicita porta TCP e pasta do wsgi/settings)
+   - `2` para **PHP** (cria estrutura `public_html`)
+   - `3` para **NPM / Node.js** (`1` para SSR com Supervisor ou `2` para SPA estático)
+4. Senhas seguras do usuário Linux e do banco MySQL são geradas automaticamente.
 
-Exclui uma conta no servidor:
+> **Importante**: O comando registra o novo processo no Supervisor via `reread && update` e recarrega o Nginx com `systemctl reload nginx`, **sem reiniciar nem interromper os outros projetos já existentes no servidor**.
 
-    fab delaccount
+---
 
+### Migrar Projetos Legados
 
-<h3>Clonar projeto no servidor</h3>
+Se você já possui projetos rodando no servidor sob a configuração antiga:
 
-<p><a href="https://github.com/willemallan/django-fab-server/blob/master/client/fabfile.py">fabfile</a> usado no projeto para subir os dados no servidor.</p>
+#### Migrar uma conta específica:
+    fab migrate-account
+    # Digite o nome da conta existente
 
-<p>Estrutura dos projetos - são utilizados 3 domínios media e static separados.</p>
+#### Migrar todas as contas detectadas no servidor:
+    fab migrate-all-projects
 
-<ul>
-    <li>www.willemallan.com.br ou willemallan.com.br</li>
-    <li>static.willemallan.com.br - /home/willemallan/project/static</li>
-    <li>media.willemallan.com.br - /home/willemallan/project/media</li>
-</ul>
+O procedimento de migração:
+- Cria um backup prévio completo em `/home/{conta}/.backup_migration_{timestamp}/`
+- Instala o `/usr/local/bin/supervisorctl-restricted`
+- Ajusta a permissão do diretório para `chmod 750` e adiciona `www-data` ao grupo
+- Configura o arquivo `/etc/sudoers.d/{conta}` com permissão mínima (0440)
+- Mantém a configuração exclusivamente na home do usuário em `/home/{conta}/supervisor.ini`
+- Executa `supervisorctl reread && supervisorctl update` sem reiniciar outros serviços
 
-exemplo do settings.py do projeto:
+#### Reverter em caso de imprevisto:
+    fab rollback-migration --conta=meusite
 
-    MEDIA_ROOT = os.path.join(PROJECT_PATH, '..', 'media')
-    MEDIA_URL = 'http://media.willemallan.com.br/'
+---
 
+### Deploy pelo Desenvolvedor (Sem Root)
 
-    STATIC_ROOT = os.path.join(PROJECT_PATH, '..', 'static')
-    STATIC_URL = 'http://static.willemallan.com.br/'
+No repositório da aplicação, o desenvolvedor utiliza o `client/fabfile.py`:
 
-    STATICFILES_DIRS = (
-        os.path.join(PROJECT_PATH, 'static'),
-    )
+    # Configuração inicial (chaves SSH, clone e bootstrap)
+    fab config
 
-    TEMPLATE_DIRS = (
-        os.path.join(PROJECT_PATH, '..', 'templates')
-    )
-
-<h3>Clonando projeto</h3>
-
-<p>Antes de clonar precisa configurar o settings do projeto de acordo com os dados que o script gera.</p>
-<p>Quando vai clonar um projeto é importante adicionar a chave do servidor no bitbucket apenas no deploy key do projeto. Assim o servidor só poderá ler os arquivos e nunca poderá escrever, evitando problemas que acontecem do programador arrumar os bugs do servidor e esquecer de dar commit.</p>
-
-Baixar esse <a href="https://github.com/willemallan/django-fab-server/blob/master/client/fabfile.py">fabfile</a> para o projeto.
-
-
-Configurar o servidor pela primeira vez (precisa copiar a chave ssh para o repositório do servidor):
-
-    fab config (instala o pip e os requirements.txt no env. Executa o migrate e collectstatic)
-
-
-Rode o projeto para testar se há alguem erro (depois pode cancelar ctrl+c):
-
-    python project/manage.py runserver 8060
-
-
-Rode o projeto com o gunicorn para testar se ele esta instalado no env e no INSTALLED_APPS:
-
-    gunicorn project.wsgi:application
-
-
-Sai do servidor:
-    exit
-
-
-Atualiza o repositório no servidor e reinicia a aplicação do supervisor:
-
+    # Deploy rotineiro (conecta com o usuário da aplicação, sem root)
     fab deploy
 
+    # Consultar status dos processos
+    fab status
 
-<p>Servidor2 muda para root pois para reiniciar a aplicação precisa ser o root e não o usuário da conta.</p>
+    # Reiniciar aplicação de forma restrita
+    fab restart
 
-Outros comandos
-================
-
-Reinicie NGINX
-
-    fab nginx-restart
-
-Reinicie SUPERVISOR
-
-    fab supervisor-restart
-
-
-
-
-
-
-
-
-
-
-
+    # Teste de resposta HTTP
+    fab health-check

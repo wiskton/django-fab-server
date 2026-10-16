@@ -11,7 +11,7 @@ EXPECTED_ROOT_TASKS = {
     "stop-server", "supervisor-restart", "supervisor-start",
     "supervisor-stop", "update-local", "update-server", "upgrade-local",
     "upgrade-server", "upload-public-key", "userdel", "install-ssl",
-    "install-mysql-deps",
+    "install-mysql-deps", "migrate-account", "migrate-all-projects", "rollback-migration",
 }
 
 EXPECTED_PROJETO_TASKS = {
@@ -24,7 +24,7 @@ EXPECTED_PROJETO_TASKS = {
     "restart", "revert", "server", "test", "translate", "translate-remote",
     "update-requirements", "upload-public-key", "install-gettext", "show-key",
     "fix-supervisor", "enable-ssl", "install-redis", "setup-celery",
-    "health-check",
+    "health-check", "status",
 }
 
 
@@ -123,29 +123,7 @@ def test_project_has_celery_false_when_not_mentioned(client_fabfile):
     assert client_fabfile._project_has_celery(FakeConn(), "/home/site/project") is False
 
 
-def test_restart_falls_back_to_plain_program_name_when_group_missing(client_fabfile, monkeypatch):
-    # regressão: antes do fallback, `fab restart` travava (Failure) num servidor
-    # onde o Celery ainda não foi configurado via fix-supervisor/setup-celery, já
-    # que o grupo "{username}:*" só existe depois disso.
-    calls = []
-
-    class FakeConn:
-        def run(self, cmd, warn=False):
-            calls.append(cmd)
-            return _FakeResult(ok=":*" not in cmd)
-
-    monkeypatch.setattr(client_fabfile, "get_connection", lambda: FakeConn())
-    monkeypatch.setattr(client_fabfile, "username", "meusite")
-
-    client_fabfile.restart(Context())
-
-    assert calls == [
-        "supervisorctl restart meusite:*",
-        "supervisorctl restart meusite",
-    ]
-
-
-def test_restart_does_not_fallback_when_group_restart_succeeds(client_fabfile, monkeypatch):
+def test_restart_uses_restricted_controller_when_available(client_fabfile, monkeypatch):
     calls = []
 
     class FakeConn:
@@ -158,7 +136,53 @@ def test_restart_does_not_fallback_when_group_restart_succeeds(client_fabfile, m
 
     client_fabfile.restart(Context())
 
-    assert calls == ["supervisorctl restart meusite:*"]
+    assert calls == ["sudo /usr/local/bin/supervisorctl-restricted meusite restart"]
+
+
+def test_restart_falls_back_to_plain_program_name_when_group_missing(client_fabfile, monkeypatch):
+    # regressão: antes do fallback, `fab restart` travava (Failure) num servidor
+    # onde o Celery ainda não foi configurado via fix-supervisor/setup-celery, já
+    # que o grupo "{username}:*" só existe depois disso.
+    calls = []
+
+    class FakeConn:
+        def run(self, cmd, warn=False):
+            calls.append(cmd)
+            if "supervisorctl-restricted" in cmd:
+                return _FakeResult(ok=False)
+            return _FakeResult(ok=":*" not in cmd)
+
+    monkeypatch.setattr(client_fabfile, "get_connection", lambda: FakeConn())
+    monkeypatch.setattr(client_fabfile, "username", "meusite")
+
+    client_fabfile.restart(Context())
+
+    assert calls == [
+        "sudo /usr/local/bin/supervisorctl-restricted meusite restart",
+        "supervisorctl restart meusite:*",
+        "supervisorctl restart meusite",
+    ]
+
+
+def test_restart_does_not_fallback_when_group_restart_succeeds(client_fabfile, monkeypatch):
+    calls = []
+
+    class FakeConn:
+        def run(self, cmd, warn=False):
+            calls.append(cmd)
+            if "supervisorctl-restricted" in cmd:
+                return _FakeResult(ok=False)
+            return _FakeResult(ok=True)
+
+    monkeypatch.setattr(client_fabfile, "get_connection", lambda: FakeConn())
+    monkeypatch.setattr(client_fabfile, "username", "meusite")
+
+    client_fabfile.restart(Context())
+
+    assert calls == [
+        "sudo /usr/local/bin/supervisorctl-restricted meusite restart",
+        "supervisorctl restart meusite:*",
+    ]
 
 
 def test_get_root_connection_defaults_to_root_user(client_fabfile, monkeypatch):

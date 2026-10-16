@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import functools
 import os
+import re
+import uuid
 from io import BytesIO
 
 from fabric import Connection, task
@@ -120,6 +122,66 @@ def log(message, color=white):
 
 _jinja_env = Environment(loader=FileSystemLoader(os.path.join(CURRENT_PATH, "inc")))
 
+RESERVED_SYSTEM_USERS = {
+    "root", "bin", "daemon", "sys", "adm", "sync", "games", "man", "lp", "mail",
+    "news", "uucp", "proxy", "www-data", "backup", "list", "irc", "gnats", "nobody",
+    "systemd", "nginx", "http", "mysql", "mariadb", "supervisor", "supervisord",
+    "redis", "ftp", "sshd",
+}
+
+
+def _validate_account_name(conta):
+    """Valida o nome da conta para garantir segurança e isolamento."""
+    if not conta or not isinstance(conta, str):
+        raise ValueError("Nome da conta não pode ser vazio.")
+    conta = conta.strip()
+    if not re.match(r"^[a-z0-9_-]{2,32}$", conta):
+        raise ValueError(
+            "Nome de conta inválido: '{0}'. Use de 2 a 32 caracteres contendo apenas "
+            "letras minúsculas, números, sublinhado (_) ou hífen (-).".format(conta)
+        )
+    if conta in RESERVED_SYSTEM_USERS:
+        raise ValueError("O nome de conta '{0}' é reservado pelo sistema.".format(conta))
+    return conta
+
+
+def _validate_domain(domain):
+    """Valida formato de domínio."""
+    if not domain or not isinstance(domain, str):
+        raise ValueError("Domínio não pode ser vazio.")
+    domain = domain.strip().lower()
+    if not re.match(r"^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$", domain):
+        raise ValueError("Domínio inválido: '{0}'. Exemplo: meusite.com.br".format(domain))
+    return domain
+
+
+def _validate_port(port, conn=None):
+    """Valida porta TCP e verifica se já está em uso."""
+    try:
+        p = int(str(port).strip())
+    except (ValueError, TypeError):
+        raise ValueError("Porta inválida: '{0}'. Informe um número entre 1024 e 65535.".format(port))
+    if not (1024 <= p <= 65535):
+        raise ValueError("Porta fora do intervalo permitido (1024-65535): {0}".format(p))
+
+    if conn:
+        res = conn.sudo("ss -tulpn 2>/dev/null | grep -E ':{0}\\b' || true".format(p), warn=True, hide=True)
+        if res and getattr(res, "ok", False) and getattr(res, "stdout", "").strip():
+            log("AVISO: A porta {0} já aparenta estar em uso por outro processo ativo no sistema!".format(p), yellow)
+    return str(p)
+
+
+def _install_supervisorctl_restricted(conn):
+    """Instala ou atualiza o wrapper seguro supervisorctl-restricted em /usr/local/bin."""
+    src_path = os.path.join(CURRENT_PATH, "inc", "supervisorctl-restricted")
+    with open(src_path, "rb") as f:
+        content = f.read()
+    remote_tmp = "/tmp/supervisorctl-restricted.{0}.tmp".format(uuid.uuid4().hex)
+    conn.put(BytesIO(content), remote=remote_tmp)
+    conn.sudo("mv {0} /usr/local/bin/supervisorctl-restricted".format(remote_tmp))
+    conn.sudo("chown root:root /usr/local/bin/supervisorctl-restricted")
+    conn.sudo("chmod 755 /usr/local/bin/supervisorctl-restricted")
+
 
 def write_file(filename, destination):
     """Renderiza um template Jinja2 de inc/ e envia para o servidor.
@@ -127,7 +189,7 @@ def write_file(filename, destination):
     content = _jinja_env.get_template(filename).render(**cfg)
 
     conn = get_connection()
-    remote_tmp = "/tmp/{0}".format(os.path.basename(destination))
+    remote_tmp = "/tmp/{0}.{1}.tmp".format(os.path.basename(destination), uuid.uuid4().hex)
     # BytesIO (não StringIO): o SFTP do paramiko calcula o tamanho do envio
     # com base em .tell() do arquivo em bytes -- com StringIO (texto) e
     # conteúdo com acentos (UTF-8 multi-byte, comum nos comentários em
@@ -237,6 +299,13 @@ _SUPERVISOR_CONF_PATH_BY_FAMILY = {
     "fedora": "/etc/supervisord.conf",
     "rhel": "/etc/supervisord.conf",
     "arch": "/etc/supervisord.conf",
+}
+
+_SUPERVISOR_CONF_DIR_BY_FAMILY = {
+    "debian": "/etc/supervisor/conf.d",
+    "fedora": "/etc/supervisord.d",
+    "rhel": "/etc/supervisord.d",
+    "arch": "/etc/supervisor.d",
 }
 
 # FTP: proftpd não tem pacote oficial no Arch (só AUR) -- usa vsftpd lá
@@ -464,6 +533,9 @@ def newserver(c):
     supervisor_conf_path = _SUPERVISOR_CONF_PATH_BY_FAMILY[cfg.os_family]
     print(yellow("supervisor - Alterando arquivo {0}".format(supervisor_conf_path)))
     write_file("supervisord_server.conf", supervisor_conf_path)
+    supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY[cfg.os_family]
+    conn.sudo("mkdir -p {0}".format(supervisor_dir))
+    _install_supervisorctl_restricted(conn)
     supervisor_restart(c)
 
     if cfg.db_password:
@@ -483,8 +555,12 @@ def newaccount(c):
     # criando usuario
     if not cfg.conta:
         cfg.conta = input("Digite o nome da conta: ")
+    cfg.conta = _validate_account_name(cfg.conta)
+
     if not cfg.dominio:
         cfg.dominio = input("Digite o domínio do site (sem www): ")
+    cfg.dominio = _validate_domain(cfg.dominio)
+
     if not cfg.linguagem:
         cfg.linguagem = input(
             "Linguagens disponíveis\n\n1) PYTHON\n2) PHP\n3) NPM (Node.js)\n\nEscolha a linguagem: "
@@ -516,6 +592,7 @@ def newaccount(c):
             cfg.porta = input(
                 "Digite o número de uma porta que não está listada acima: "
             )
+        cfg.porta = _validate_port(cfg.porta, conn=conn)
         if not cfg.pasta_settings:
             cfg.pasta_settings = input(
                 "Digite o nome da pasta onde está o settings/wsgi. ( Ex: app, config, [nome-do-projeto] ):"
@@ -542,6 +619,7 @@ def newaccount(c):
                 cfg.porta = input(
                     "Digite o número de uma porta que não está listada acima: "
                 )
+            cfg.porta = _validate_port(cfg.porta, conn=conn)
             if not getattr(cfg, "npm_start_cmd", None):
                 cfg.npm_start_cmd = input(
                     "Comando para iniciar a aplicação [npm run start]: "
@@ -599,12 +677,37 @@ def newaccount(c):
     banco_senha = create_password(12)
     newbase(c, cfg.conta, banco_senha)
 
-    # da permissao para o usuario no diretorio
+    # da permissao para o usuario no diretorio e aplica isolamento estrito (750)
     conn.sudo("chown -R {0}:{0} /home/{0}".format(cfg.conta))
-    conn.sudo("chmod 755 /home/{0}".format(cfg.conta))
+    conn.sudo("chmod 750 /home/{0}".format(cfg.conta))
+    conn.sudo("chmod 750 /home/{0}/logs".format(cfg.conta))
+    conn.sudo("chmod 640 /home/{0}/logs/access.log /home/{0}/logs/error.log".format(cfg.conta))
+    conn.sudo("mkdir -p /home/{0}/.ssh".format(cfg.conta))
+    conn.sudo("chmod 700 /home/{0}/.ssh".format(cfg.conta))
+    conn.sudo("touch /home/{0}/.ssh/authorized_keys".format(cfg.conta))
+    conn.sudo("chmod 600 /home/{0}/.ssh/authorized_keys".format(cfg.conta))
+    conn.sudo("chown -R {0}:{0} /home/{0}/.ssh".format(cfg.conta))
 
-    nginx_restart(c)
-    supervisor_restart(c)
+    # adiciona o usuario do nginx ao grupo da conta para permitir leitura de estáticos e sockets
+    nginx_user = _NGINX_USER_BY_FAMILY[cfg.os_family]
+    conn.sudo("usermod -a -G {0} {1}".format(cfg.conta, nginx_user))
+
+    # instala controlador restrito e configura sudoers para privilegios minimos
+    _install_supervisorctl_restricted(conn)
+    write_file("sudoers.conf", "/etc/sudoers.d/{0}".format(cfg.conta))
+    conn.sudo("chown root:root /etc/sudoers.d/{0}".format(cfg.conta))
+    conn.sudo("chmod 0440 /etc/sudoers.d/{0}".format(cfg.conta))
+    conn.sudo("visudo -cf /etc/sudoers.d/{0}".format(cfg.conta))
+
+    # registra nova aplicação no supervisor sem reiniciar processos existentes
+    # a configuração permanece diretamente em /home/{conta}/supervisor.ini
+    if lang_id == 1 or (lang_id == 3 and npm_type_id == 1):
+        conn.sudo("supervisorctl reread")
+        conn.sudo("supervisorctl update")
+
+    # testa configuracao do nginx e recarrega de forma transparente (sem interromper outros sites)
+    conn.sudo("nginx -t")
+    conn.sudo("systemctl reload nginx")
 
     # log para salvar no docs
     log("Anotar dados da conta", green)
@@ -735,8 +838,133 @@ def userdel(c, conta=None):
     """Deletar usuário no servidor"""
     if not conta:
         conta = input("Digite o nome do usuario: ")
+    conta = _validate_account_name(conta)
     log("Deletando usuário {0}".format(conta), red)
-    get_connection().sudo("userdel -r {0}".format(conta))
+    conn = get_connection()
+    supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY.get(cfg.os_family, "/etc/supervisor/conf.d")
+    conn.sudo("rm -f {0}/{1}.conf".format(supervisor_dir, conta), warn=True)
+    conn.sudo("rm -f /etc/sudoers.d/{0}".format(conta))
+    conn.sudo("supervisorctl stop {0}:*".format(conta), warn=True)
+    conn.sudo("supervisorctl stop {0}".format(conta), warn=True)
+    conn.sudo("userdel -r {0}".format(conta))
+    conn.sudo("supervisorctl reread", warn=True)
+    conn.sudo("supervisorctl update", warn=True)
+
+
+@task
+def migrate_account(c, conta=None):
+    """Migra um projeto existente para o modelo de isolamento seguro e controle restrito."""
+    conn = get_connection()
+    if not conta:
+        conta = input("Digite o nome da conta a migrar: ")
+    conta = _validate_account_name(conta)
+
+    res = conn.sudo("test -d /home/{0}".format(conta), warn=True)
+    if res.failed:
+        log("ERRO: Diretório /home/{0} não encontrado.".format(conta), red)
+        return False
+
+    log("Iniciando migração segura do projeto: {0}".format(conta), yellow)
+
+    # 1. Backup de segurança com timestamp
+    from datetime import datetime, timezone
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    backup_dir = "/home/{0}/.backup_migration_{1}".format(conta, ts)
+    conn.sudo("mkdir -p {0}".format(backup_dir))
+    conn.sudo("test -f /home/{0}/supervisor.ini && cp /home/{0}/supervisor.ini {1}/supervisor.ini || true".format(conta, backup_dir))
+    conn.sudo("test -f /home/{0}/nginx.conf && cp /home/{0}/nginx.conf {1}/nginx.conf || true".format(conta, backup_dir))
+    conn.sudo("test -f /etc/sudoers.d/{0} && cp /etc/sudoers.d/{0} {1}/sudoers || true".format(conta, backup_dir))
+    log("Backup de segurança criado em {0}".format(backup_dir), green)
+
+    # 2. Instalação do supervisorctl-restricted
+    _install_supervisorctl_restricted(conn)
+
+    # 3. Criação da regra de sudoers restrita
+    cfg.conta = conta
+    write_file("sudoers.conf", "/etc/sudoers.d/{0}".format(conta))
+    conn.sudo("chown root:root /etc/sudoers.d/{0}".format(conta))
+    conn.sudo("chmod 0440 /etc/sudoers.d/{0}".format(conta))
+    conn.sudo("visudo -cf /etc/sudoers.d/{0}".format(conta))
+
+    # 4. Ajuste de permissões de isolamento (750)
+    conn.sudo("chown -R {0}:{0} /home/{0}".format(conta))
+    conn.sudo("chmod 750 /home/{0}".format(conta))
+    nginx_user = _NGINX_USER_BY_FAMILY[cfg.os_family]
+    conn.sudo("usermod -a -G {0} {1}".format(conta, nginx_user))
+
+    # Ajusta permissões em logs e .ssh
+    conn.sudo("test -d /home/{0}/logs && chmod 750 /home/{0}/logs || true".format(conta))
+    conn.sudo("test -d /home/{0}/logs && chmod 640 /home/{0}/logs/*.log 2>/dev/null || true".format(conta))
+    conn.sudo("test -d /home/{0}/.ssh && chmod 700 /home/{0}/.ssh || true".format(conta))
+    conn.sudo("test -f /home/{0}/.ssh/authorized_keys && chmod 600 /home/{0}/.ssh/authorized_keys || true".format(conta))
+
+    # 5. Reread e update no Supervisor (sem reiniciar processos ativos dos demais projetos)
+    # A configuracao permanece exclusivamente em /home/{conta}/supervisor.ini
+    conn.sudo("supervisorctl reread")
+    conn.sudo("supervisorctl update")
+
+    # 7. Teste de status restrito
+    log("Testando controle restrito do Supervisor:", green)
+    conn.sudo("su - {0} -c 'sudo /usr/local/bin/supervisorctl-restricted {0} status'".format(conta), warn=True)
+
+    log("✔ Projeto '{0}' migrado com sucesso para o modelo restrito!".format(conta), green)
+    return True
+
+
+@task
+def migrate_all_projects(c):
+    """Detecta todos os projetos existentes em /home/* e migra cada um com segurança."""
+    conn = get_connection()
+    log("Descobrindo contas existentes em /home...", yellow)
+    res = conn.sudo("ls -1 /home", hide=True, warn=True)
+    if res.failed or not res.stdout.strip():
+        log("Nenhuma pasta de usuário encontrada em /home.", red)
+        return
+
+    users = [u.strip() for u in res.stdout.splitlines() if u.strip()]
+    migrated = []
+    for u in users:
+        chk = conn.sudo("test -f /home/{0}/supervisor.ini || test -f /home/{0}/nginx.conf".format(u), warn=True, hide=True)
+        if chk.ok:
+            migrated.append(u)
+
+    if not migrated:
+        log("Nenhum projeto com supervisor.ini ou nginx.conf encontrado.", yellow)
+        return
+
+    print("Projetos detectados para migração:\n - " + "\n - ".join(migrated))
+    if not confirm("Deseja migrar todos os projetos listados acima com backup automático?"):
+        log("Migração cancelada.")
+        return
+
+    for u in migrated:
+        migrate_account(c, conta=u)
+    log("✔ Migração de todos os projetos concluída!", green)
+
+
+@task
+def rollback_migration(c, conta=None):
+    """Reverte permissões e restaura configurações de backup caso ocorra algum problema."""
+    conn = get_connection()
+    if not conta:
+        conta = input("Digite o nome da conta para rollback: ")
+    conta = _validate_account_name(conta)
+
+    log("Iniciando rollback para o projeto {0}...".format(conta), yellow)
+    conn.sudo("chmod 755 /home/{0}".format(conta))
+
+    res = conn.sudo("ls -d /home/{0}/.backup_migration_* 2>/dev/null | sort | tail -n 1".format(conta), hide=True, warn=True)
+    if res.ok and res.stdout.strip():
+        last_backup = res.stdout.strip()
+        log("Restaurando arquivos a partir de {0}...".format(last_backup), yellow)
+        conn.sudo("test -f {0}/supervisor.ini && cp {0}/supervisor.ini /home/{1}/supervisor.ini || true".format(last_backup, conta))
+        conn.sudo("test -f {0}/sudoers && cp {0}/sudoers /etc/sudoers.d/{1} || true".format(last_backup, conta))
+        conn.sudo("supervisorctl reread && supervisorctl update", warn=True)
+        log("✔ Arquivos restaurados a partir do backup.", green)
+    else:
+        log("AVISO: Nenhum diretório de backup automático foi localizado.", yellow)
+
+    log("Rollback concluído para {0}.".format(conta), green)
 
 
 @task
