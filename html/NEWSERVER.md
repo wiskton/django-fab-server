@@ -73,7 +73,7 @@ O procedimento de migração:
 - Instala o `/usr/local/bin/supervisorctl-restricted`
 - Ajusta a permissão do diretório para `chmod 750` e adiciona `www-data` ao grupo
 - Configura o arquivo `/etc/sudoers.d/{conta}` com permissão mínima (0440)
-- Move/copia a configuração para `/etc/supervisor/conf.d/{conta}.conf` com posse do root
+- Mantém a configuração exclusivamente na home do usuário em `/home/{conta}/supervisor.ini`
 - Executa `supervisorctl reread && supervisorctl update` sem reiniciar outros serviços
 
 #### Reverter em caso de imprevisto:

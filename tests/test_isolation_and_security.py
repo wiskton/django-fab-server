@@ -34,8 +34,8 @@ def test_supervisord_server_conf_restricts_socket_to_root(inc_dir):
     assert "chmod=0700" in rendered
     assert "chmod=0777" not in rendered
     assert "chown=root:root" in rendered
-    assert "/etc/supervisor/conf.d/*.conf" in rendered
-    assert "/home/*/supervisor.ini" in rendered
+    assert "files = /home/*/supervisor.ini" in rendered
+    assert "/etc/supervisor/conf.d" not in rendered
 
 
 def test_supervisor_ini_contains_stopasgroup_and_signals(inc_dir):
@@ -213,6 +213,7 @@ def test_migrate_account_creates_backup_and_sets_restricted_isolation(server_fab
     assert "supervisorctl reread" in sudo_calls
     assert "supervisorctl update" in sudo_calls
     assert not any("systemctl restart supervisor" in c for c in sudo_calls)
+    assert not any("cp /home/legacysite/supervisor.ini /etc/supervisor/conf.d" in c for c in sudo_calls)
 
 
 def test_rollback_migration_restores_permissions(server_fabfile, monkeypatch):
@@ -250,8 +251,23 @@ def test_userA_cannot_modify_project_B_configuration(inc_dir):
     # Configuração é executada com user=userB
     assert "user=userB" in rendered_b
     assert "user=userA" not in rendered_b
-    # Home do usuário B tem permissões 750 (sem permissão de escrita para outros)
-    # E arquivos em /etc/supervisor/conf.d/ pertencem a root:root 0644
+    # Home do usuário B tem permissões 750 (sem permissão de escrita/leitura para outros usuários)
+    # Todos os arquivos do projeto B permanecem estritamente dentro de /home/userB/
+
+
+def test_user_files_stay_strictly_in_user_home_directory(inc_dir):
+    """Garante que todos os arquivos de configuração (supervisor.ini e nginx.conf)
+    são mantidos exclusivamente em /home/{usuario}/ e lidos diretamente de lá."""
+    env = _jinja_env(inc_dir)
+    sup_conf = env.get_template("supervisord_server.conf").render(**SAMPLE_CONTEXT)
+    nginx_conf = env.get_template("nginx_server.conf").render(**SAMPLE_CONTEXT)
+
+    # Supervisor lê direto das homes dos usuários: files = /home/*/supervisor.ini
+    assert "files = /home/*/supervisor.ini" in sup_conf
+    assert "/etc/supervisor/conf.d" not in sup_conf
+
+    # Nginx inclui arquivos nginx.conf da home dos usuários
+    assert "include /home/*/nginx.conf;" in nginx_conf
 
 
 def test_deploy_project_A_does_not_interrupt_project_B(client_fabfile, monkeypatch):

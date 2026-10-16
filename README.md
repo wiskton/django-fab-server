@@ -40,16 +40,18 @@ O **django-fab-server** é uma infraestrutura de automação sem Docker que perm
  └─────────────────────────────────────────┬─────────────────────────────────────────┘
                                            │
                                            ▼
-                             ┌───────────────────────────┐
-                             │    Supervisord Central    │
-                             │  /etc/supervisor/conf.d/  │
-                             └───────────────────────────┘
+                             ┌────────────────────────────────┐
+                             │      Supervisord Central       │
+                             │  files = /home/*/supervisor.ini│
+                             └────────────────────────────────┘
 ```
 
 ### Pilares de Isolamento e Segurança
 
-1. **Isolamento de Usuários Linux**:
+1. **Isolamento de Usuários Linux e Dados na Home**:
    - Cada projeto possui um usuário Linux exclusivo com sua própria pasta `/home/{usuario}/`.
+   - **Todos os arquivos e dados ficam na home do usuário**: as configurações do projeto (`supervisor.ini`, `nginx.conf`), ambiente virtual (`env/`), código (`project/`), chaves (`.ssh/`) e logs (`logs/`) permanecem estritamente dentro de `/home/{usuario}/`.
+   - O Supervisor central lê os processos diretamente via `files = /home/*/supervisor.ini` e o Nginx via `include /home/*/nginx.conf;`, sem copiar arquivos para fora da home.
    - Permissões estritas `chmod 750 /home/{usuario}` impedem que um usuário visualize ou modifique arquivos de outro projeto.
    - O worker do Nginx (`www-data`, `nginx` ou `http`) é adicionado ao grupo do projeto para ler estáticos e mídia sem abrir o diretório para outros usuários.
    - Chaves SSH protegidas com `chmod 700 /home/{usuario}/.ssh` e `chmod 600 authorized_keys`.
@@ -158,10 +160,10 @@ os_family = "debian"  # "debian" (Ubuntu/Debian), "fedora", "rhel" ou "arch"
 
 | `os_family` | Distros | Gerenciador | Banco de Dados | FTP | Supervisor Conf |
 |---|---|:---:|:---:|:---:|:---:|
-| `debian` | Ubuntu, Debian | `apt` | MySQL | proftpd | `/etc/supervisor/conf.d/` |
-| `fedora` | Fedora | `dnf` | MariaDB | proftpd | `/etc/supervisord.d/` |
-| `rhel` | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd | `/etc/supervisord.d/` |
-| `arch` | Arch Linux, Manjaro | `pacman` | MariaDB | vsftpd | `/etc/supervisor.d/` |
+| `debian` | Ubuntu, Debian | `apt` | MySQL | proftpd | `/home/*/supervisor.ini` |
+| `fedora` | Fedora | `dnf` | MariaDB | proftpd | `/home/*/supervisor.ini` |
+| `rhel` | CentOS Stream, RHEL, Rocky, Alma | `dnf` (+ EPEL) | MariaDB | proftpd | `/home/*/supervisor.ini` |
+| `arch` | Arch Linux, Manjaro | `pacman` | MariaDB | vsftpd | `/home/*/supervisor.ini` |
 
 ---
 
@@ -245,7 +247,7 @@ O comando realiza automaticamente:
 2. Instalação do `/usr/local/bin/supervisorctl-restricted` em `/usr/local/bin` (0755, root:root).
 3. Criação da regra restrita em `/etc/sudoers.d/{conta}` com permissão `0440` (validada com `visudo -cf`).
 4. Ajuste de permissões de isolamento `chmod 750 /home/{conta}` e inclusão do usuário do Nginx no grupo da conta.
-5. Cópia protegida da configuração para `/etc/supervisor/conf.d/{conta}.conf` (0644, root:root).
+5. Validação e preservação da configuração diretamente em `/home/{conta}/supervisor.ini`.
 6. Atualização no Supervisor via `supervisorctl reread && supervisorctl update` **sem reiniciar outros projetos**.
 7. Teste de status executado como o próprio usuário da conta.
 
@@ -282,7 +284,7 @@ O script cria:
 - Grupo `apploja` com `www-data` associado
 - Virtualenv Python 3 em `/home/apploja/env`
 - Configuração Nginx em `/home/apploja/nginx.conf`
-- Configuração Supervisor em `/etc/supervisor/conf.d/apploja.conf`
+- Configuração Supervisor em `/home/apploja/supervisor.ini`
 - Permissão de controle restrito em `/etc/sudoers.d/apploja`
 - Banco de dados MySQL e usuário local `apploja`
 
@@ -334,7 +336,7 @@ pip install pytest
 pytest
 ```
 
-**113 testes passando (100% de sucesso)**, cobrindo:
+**114 testes passando (100% de sucesso)**, cobrindo:
 - Autorização e rejeição de acessos indevidos no `supervisorctl-restricted`
 - Validação estrita de alvos e sanitização contra shell injection
 - Permissões de isolamento (750), sudoers (0440) e socket unix (0700)

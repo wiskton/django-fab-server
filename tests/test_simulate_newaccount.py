@@ -136,6 +136,8 @@ def test_simulate_new_python_site_creation(server_fabfile, monkeypatch):
     # registrou e atualizou no supervisor sem reiniciar todos os projetos
     assert "supervisorctl reread" in recorder.sudo_calls
     assert "supervisorctl update" in recorder.sudo_calls
+    # arquivos permanecem exclusivamente na home do usuário (/home/acmesite/)
+    assert not any("/etc/supervisor/conf.d" in cmd for cmd in recorder.sudo_calls)
 
     # testou e recarregou nginx sem reiniciar
     assert "nginx -t" in recorder.sudo_calls
@@ -198,6 +200,8 @@ def test_simulate_new_npm_ssr_site_creation(server_fabfile, monkeypatch):
     assert "visudo -cf /etc/sudoers.d/nodeapp" in recorder.sudo_calls
     assert "supervisorctl reread" in recorder.sudo_calls
     assert "supervisorctl update" in recorder.sudo_calls
+    # arquivos permanecem exclusivamente na home do usuário (/home/nodeapp/)
+    assert not any("/etc/supervisor/conf.d" in cmd for cmd in recorder.sudo_calls)
     assert "nginx -t" in recorder.sudo_calls
     assert "systemctl reload nginx" in recorder.sudo_calls
 

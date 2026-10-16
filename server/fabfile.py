@@ -699,13 +699,9 @@ def newaccount(c):
     conn.sudo("chmod 0440 /etc/sudoers.d/{0}".format(cfg.conta))
     conn.sudo("visudo -cf /etc/sudoers.d/{0}".format(cfg.conta))
 
-    # copia configuracao do supervisor para o diretorio central protegido
+    # registra nova aplicação no supervisor sem reiniciar processos existentes
+    # a configuração permanece diretamente em /home/{conta}/supervisor.ini
     if lang_id == 1 or (lang_id == 3 and npm_type_id == 1):
-        supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY.get(cfg.os_family, "/etc/supervisor/conf.d")
-        conn.sudo("mkdir -p {0}".format(supervisor_dir))
-        conn.sudo("cp /home/{0}/supervisor.ini {1}/{0}.conf".format(cfg.conta, supervisor_dir))
-        conn.sudo("chown root:root {0}/{1}.conf".format(supervisor_dir, cfg.conta))
-        conn.sudo("chmod 644 {0}/{1}.conf".format(supervisor_dir, cfg.conta))
         conn.sudo("supervisorctl reread")
         conn.sudo("supervisorctl update")
 
@@ -846,11 +842,13 @@ def userdel(c, conta=None):
     log("Deletando usuário {0}".format(conta), red)
     conn = get_connection()
     supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY.get(cfg.os_family, "/etc/supervisor/conf.d")
-    conn.sudo("rm -f {0}/{1}.conf".format(supervisor_dir, conta))
+    conn.sudo("rm -f {0}/{1}.conf".format(supervisor_dir, conta), warn=True)
     conn.sudo("rm -f /etc/sudoers.d/{0}".format(conta))
+    conn.sudo("supervisorctl stop {0}:*".format(conta), warn=True)
+    conn.sudo("supervisorctl stop {0}".format(conta), warn=True)
+    conn.sudo("userdel -r {0}".format(conta))
     conn.sudo("supervisorctl reread", warn=True)
     conn.sudo("supervisorctl update", warn=True)
-    conn.sudo("userdel -r {0}".format(conta))
 
 
 @task
@@ -900,16 +898,8 @@ def migrate_account(c, conta=None):
     conn.sudo("test -d /home/{0}/.ssh && chmod 700 /home/{0}/.ssh || true".format(conta))
     conn.sudo("test -f /home/{0}/.ssh/authorized_keys && chmod 600 /home/{0}/.ssh/authorized_keys || true".format(conta))
 
-    # 5. Atualização da configuração do Supervisor
-    supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY.get(cfg.os_family, "/etc/supervisor/conf.d")
-    conn.sudo("mkdir -p {0}".format(supervisor_dir))
-    res_ini = conn.sudo("test -f /home/{0}/supervisor.ini".format(conta), warn=True)
-    if res_ini.ok:
-        conn.sudo("cp /home/{0}/supervisor.ini {1}/{0}.conf".format(conta, supervisor_dir))
-        conn.sudo("chown root:root {0}/{1}.conf".format(supervisor_dir, conta))
-        conn.sudo("chmod 644 {0}/{1}.conf".format(supervisor_dir, conta))
-
-    # 6. Reread e update no Supervisor (sem reiniciar processos ativos dos demais projetos)
+    # 5. Reread e update no Supervisor (sem reiniciar processos ativos dos demais projetos)
+    # A configuracao permanece exclusivamente em /home/{conta}/supervisor.ini
     conn.sudo("supervisorctl reread")
     conn.sudo("supervisorctl update")
 

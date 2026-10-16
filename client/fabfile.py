@@ -632,7 +632,6 @@ environment=PYTHONPATH="/home/{username}/project",LANG="pt_BR.UTF-8",LC_ALL="pt_
 """
     conn.run(f"cat << 'EOF' > /home/{username}/supervisor.ini\n{ini_content}\nEOF")
     root = get_root_connection()
-    root.run(f"mkdir -p /etc/supervisor/conf.d && cp /home/{username}/supervisor.ini /etc/supervisor/conf.d/{username}.conf && chown root:root /etc/supervisor/conf.d/{username}.conf && chmod 644 /etc/supervisor/conf.d/{username}.conf", warn=True)
     root.run("supervisorctl reread", warn=True)
     root.run("supervisorctl update", warn=True)
     restart(c)
