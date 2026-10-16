@@ -546,7 +546,10 @@ def newserver(c):
     supervisor_dir = _SUPERVISOR_CONF_DIR_BY_FAMILY[cfg.os_family]
     conn.sudo("mkdir -p {0}".format(supervisor_dir))
     _install_supervisorctl_restricted(conn)
-    supervisor_restart(c)
+    # seguranca e isolamento estrito do sistema de arquivos
+    conn.sudo("chmod 0711 /home")
+    conn.sudo("sed -i 's/^UMASK.*/UMASK\\t\\t027/' /etc/login.defs 2>/dev/null || true")
+    conn.sudo("grep -q 'DIR_MODE=0750' /etc/adduser.conf 2>/dev/null && sed -i 's/^#\\?DIR_MODE=.*/DIR_MODE=0750/' /etc/adduser.conf || echo 'DIR_MODE=0750' >> /etc/adduser.conf 2>/dev/null || true")
 
     if cfg.db_password:
         log("Anote a senha do banco de dados: {0}".format(cfg.db_password), green)
@@ -687,9 +690,11 @@ def newaccount(c):
     banco_senha = create_password(12)
     newbase(c, cfg.conta, banco_senha)
 
-    # da permissao para o usuario no diretorio e aplica isolamento estrito (750)
+    # garante isolamento de travessia (/home 0711) e protecao estrita da conta (750)
+    conn.sudo("chmod 0711 /home")
     conn.sudo("chown -R {0}:{0} /home/{0}".format(cfg.conta))
     conn.sudo("chmod 750 /home/{0}".format(cfg.conta))
+    conn.sudo("chmod -R o-rwx /home/{0}".format(cfg.conta))
     conn.sudo("chmod 750 /home/{0}/logs".format(cfg.conta))
     conn.sudo("chmod 640 /home/{0}/logs/access.log /home/{0}/logs/error.log".format(cfg.conta))
     conn.sudo("mkdir -p /home/{0}/.ssh".format(cfg.conta))
@@ -697,6 +702,8 @@ def newaccount(c):
     conn.sudo("touch /home/{0}/.ssh/authorized_keys".format(cfg.conta))
     conn.sudo("chmod 600 /home/{0}/.ssh/authorized_keys".format(cfg.conta))
     conn.sudo("chown -R {0}:{0} /home/{0}/.ssh".format(cfg.conta))
+    conn.sudo("grep -q 'umask 027' /home/{0}/.bashrc 2>/dev/null || echo 'umask 027' >> /home/{0}/.bashrc".format(cfg.conta))
+    conn.sudo("grep -q 'umask 027' /home/{0}/.profile 2>/dev/null || echo 'umask 027' >> /home/{0}/.profile".format(cfg.conta))
 
     # adiciona o usuario do nginx ao grupo da conta para permitir leitura de estáticos e sockets
     nginx_user = _NGINX_USER_BY_FAMILY[cfg.os_family]
@@ -772,7 +779,12 @@ def adduser(c, conta=None, user_senha=None):
         conta = input("Digite o nome do usuário: ")
 
     log("Criando usuário {0}".format(conta), green)
-    get_connection().sudo("adduser {0}".format(conta))
+    conn = get_connection()
+    conn.sudo("adduser {0}".format(conta))
+    conn.sudo("chmod 0711 /home")
+    conn.sudo("chown -R {0}:{0} /home/{0}".format(conta))
+    conn.sudo("chmod 750 /home/{0}".format(conta))
+    conn.sudo("chmod -R o-rwx /home/{0}".format(conta))
     print(
         "\n================================================================================"
     )
@@ -896,11 +908,15 @@ def migrate_account(c, conta=None):
     conn.sudo("chmod 0440 /etc/sudoers.d/{0}".format(conta))
     conn.sudo("visudo -cf /etc/sudoers.d/{0}".format(conta))
 
-    # 4. Ajuste de permissões de isolamento (750)
+    # 4. Ajuste de permissões de isolamento (750) e restrição de travessia (/home 0711)
+    conn.sudo("chmod 0711 /home")
     conn.sudo("chown -R {0}:{0} /home/{0}".format(conta))
     conn.sudo("chmod 750 /home/{0}".format(conta))
+    conn.sudo("chmod -R o-rwx /home/{0}".format(conta))
     nginx_user = _NGINX_USER_BY_FAMILY[cfg.os_family]
     conn.sudo("usermod -a -G {0} {1}".format(conta, nginx_user))
+    conn.sudo("grep -q 'umask 027' /home/{0}/.bashrc 2>/dev/null || echo 'umask 027' >> /home/{0}/.bashrc".format(conta))
+    conn.sudo("grep -q 'umask 027' /home/{0}/.profile 2>/dev/null || echo 'umask 027' >> /home/{0}/.profile".format(conta))
 
     # Ajusta permissões em logs e .ssh
     conn.sudo("test -d /home/{0}/logs && chmod 750 /home/{0}/logs || true".format(conta))
