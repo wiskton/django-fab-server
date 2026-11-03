@@ -642,7 +642,8 @@ def newaccount(c):
         cfg.mysql_password = input("Digite a senha do ROOT do MySQL: ")
 
     # cria usuario no linux
-    user_senha = create_password(12)
+    user_senha = getattr(cfg, "user_senha", None) or create_password(12)
+    cfg.user_senha = user_senha
     adduser(c, cfg.conta, user_senha)
 
     conn.sudo("mkdir /home/{0}/logs".format(cfg.conta))
@@ -687,7 +688,8 @@ def newaccount(c):
             conn.sudo("mkdir -p /home/{0}/public_html".format(cfg.conta))
 
     # cria banco e usuario no banco
-    banco_senha = create_password(12)
+    banco_senha = getattr(cfg, "banco_senha", None) or create_password(12)
+    cfg.banco_senha = banco_senha
     newbase(c, cfg.conta, banco_senha)
 
     # garante isolamento de travessia (/home 0711) e protecao estrita da conta (750)
