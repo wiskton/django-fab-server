@@ -638,7 +638,7 @@ def newaccount(c):
                     "Comando para iniciar a aplicação [npm run start]: "
                 ).strip() or "npm run start"
 
-    if not cfg.mysql_password:
+    if not getattr(cfg, "non_interactive", False) and not cfg.mysql_password:
         cfg.mysql_password = input("Digite a senha do ROOT do MySQL: ")
 
     # cria usuario no linux
@@ -848,7 +848,7 @@ def dropbase(c, conta=None):
     """Deletar banco de dados no servidor"""
     if not conta:
         conta = input("Digite o nome do banco: ")
-    if not cfg.mysql_password:
+    if not getattr(cfg, "non_interactive", False) and not cfg.mysql_password:
         cfg.mysql_password = input("Digite a senha do ROOT do MySQL: ")
 
     _mysql_exec("DROP DATABASE IF EXISTS {0}".format(conta), password=cfg.mysql_password)
