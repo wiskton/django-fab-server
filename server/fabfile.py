@@ -780,7 +780,11 @@ def adduser(c, conta=None, user_senha=None):
 
     log("Criando usuário {0}".format(conta), green)
     conn = get_connection()
-    conn.sudo("adduser {0}".format(conta))
+    if getattr(cfg, "non_interactive", False):
+        conn.sudo("adduser --disabled-password --gecos '' {0}".format(conta))
+        conn.sudo("echo '{0}:{1}' | chpasswd".format(conta, user_senha))
+    else:
+        conn.sudo("adduser {0}".format(conta))
     conn.sudo("chmod 0711 /home")
     conn.sudo("chown -R {0}:{0} /home/{0}".format(conta))
     conn.sudo("chmod 750 /home/{0}".format(conta))
@@ -817,7 +821,7 @@ def newbase(c, conta=None, banco_senha=None):
 
     # acesso remoto ('%') é uma superfície de ataque extra e só é criado se
     # pedido explicitamente -- por padrão o banco só é acessível localmente
-    if confirm(
+    if not getattr(cfg, "non_interactive", False) and confirm(
         "Permitir acesso remoto a este banco (usuário '{0}'@'%')? Não recomendado, "
         "só é necessário se algo fora deste servidor for conectar direto no MySQL.".format(
             conta
